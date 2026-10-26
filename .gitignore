@@ -1,0 +1,29 @@
+# Development and packaging
+.venv/
+venv/
+.build/
+build/
+dist/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Personal blog data stays outside this application repository
+.blog-studio/
+/_posts/
+/_drafts/
+/_site/
+/BlogStudio.exe
+/BlogStudio-linux-x86_64
+
+# Local settings and credentials
+.env
+.env.*
+!.env.example
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

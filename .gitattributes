@@ -1,0 +1,20 @@
+* text=auto
+*.py text eol=lf
+*.sh text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.md text eol=lf
+*.js text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.json text eol=lf
+*.txt text eol=lf
+*.cmd text eol=crlf
+*.png binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+
+# Preserve upstream bytes and licenses; manifest hashes cover these files.
+static/vendor/** -text -whitespace

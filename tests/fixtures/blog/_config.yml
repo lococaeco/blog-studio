@@ -1,0 +1,14 @@
+title: Synthetic writing fixture
+url: https://example.invalid
+timezone: Asia/Seoul
+permalink: /:categories/:title/
+exclude:
+  - .blog-studio
+defaults:
+  - scope:
+      path: ""
+    values:
+      toc: true
+      comments: false
+      mathjax: true
+      teaser: /assets/images/fixture.png

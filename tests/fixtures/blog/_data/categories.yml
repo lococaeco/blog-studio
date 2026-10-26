@@ -1,0 +1,11 @@
+categories:
+  - lv1_category: AI
+    lv2:
+      - lv2_category: LLM
+        url: /category/ai/llm/
+      - lv2_category: Deep Learning
+        url: /category/ai/deep_learning/
+  - lv1_category: Dev
+    lv2:
+      - lv2_category: Notes
+        url: /category/dev/notes/

@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#f5f4f0">
+  <title>Blog Studio</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%2326302d'/%3E%3Cpath d='M20 16h14c14 0 15 15 6 17 12 3 8 17-4 17H20zm9 8v8h5c6 0 6-8 0-8zm0 15v4h6c5 0 5-7 0-7h-6z' fill='%23faf8f2'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/static/vendor/toastui-editor.css">
+  <link rel="stylesheet" href="/static/vendor/katex/katex.min.css">
+  <link rel="stylesheet" href="/static/style.css">
+  <script defer src="/static/vendor/purify.min.js"></script>
+  <script defer src="/static/vendor/toastui-editor-all.min.js"></script>
+  <script defer src="/static/vendor/ko-kr.js"></script>
+  <script defer src="/static/vendor/katex/katex.min.js"></script>
+  <script defer src="/static/vendor/katex/auto-render.min.js"></script>
+  <script defer src="/static/app.js"></script>
+</head>
+<body>
+  <svg class="icon-definitions" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"><defs>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4.5 4.5"/></symbol>
+    <symbol id="i-file" viewBox="0 0 24 24"><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9zM14 3v6h6M8 13h8M8 17h5"/></symbol>
+    <symbol id="i-pen" viewBox="0 0 24 24"><path d="m15 5 4 4M4 20l5-1L20 8a2.8 2.8 0 0 0-4-4L5 15zM4 20h8"/></symbol>
+    <symbol id="i-grid" viewBox="0 0 24 24"><rect x="4" y="4" width="6" height="6" rx="1"/><rect x="14" y="4" width="6" height="6" rx="1"/><rect x="4" y="14" width="6" height="6" rx="1"/><rect x="14" y="14" width="6" height="6" rx="1"/></symbol>
+    <symbol id="i-arrow" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></symbol>
+    <symbol id="i-image" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1"/><path d="m3 16 5-5 5 5 3-3 5 5"/></symbol>
+    <symbol id="i-download" viewBox="0 0 24 24"><path d="M12 3v12m-5-5 5 5 5-5M4 16v4h16v-4"/></symbol>
+    <symbol id="i-upload" viewBox="0 0 24 24"><path d="M12 16V4m-5 5 5-5 5 5M4 16v4h16v-4"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+    <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 10a8 8 0 1 0-1 7M20 4v6h-6"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-focus" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/></symbol>
+    <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h4m4 0h8M4 17h10m4 0h2"/><circle cx="10" cy="7" r="2"/><circle cx="16" cy="17" r="2"/></symbol>
+  </defs></svg>
+  <div class="app-shell" id="app">
+    <button class="sidebar-backdrop" id="sidebar-backdrop" tabindex="-1" aria-label="보관함 닫기" hidden></button>
+    <aside class="sidebar" id="sidebar" aria-label="글 보관함">
+      <a class="brand" id="home-button" href="/" aria-label="Blog Studio 홈"><span class="brand-symbol">b.</span><span>Blog Studio<small>나만의 글쓰기 공간</small></span></a>
+      <button class="button primary new-button" id="new-post"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg> 새 글 쓰기 <kbd>N</kbd></button>
+      <label class="search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><input id="search" type="search" placeholder="글 검색" aria-label="글 검색"><kbd>/</kbd></label>
+      <nav class="library-nav" aria-label="보관함 종류">
+        <button class="nav-item active" data-view="all"><svg class="icon" aria-hidden="true"><use href="#i-file"/></svg> 블로그 글 <b id="count-all">0</b></button>
+        <button class="nav-item" data-view="drafts"><svg class="icon" aria-hidden="true"><use href="#i-pen"/></svg> 작성 중 <b id="count-drafts">0</b></button>
+        <button class="nav-item" data-view="templates"><svg class="icon" aria-hidden="true"><use href="#i-grid"/></svg> 글 템플릿</button>
+      </nav>
+      <div class="list-label"><span id="list-heading">내 블로그</span><button class="icon-button" id="refresh" title="목록 새로고침" aria-label="목록 새로고침"><svg class="icon" aria-hidden="true"><use href="#i-refresh"/></svg></button></div>
+      <div class="post-list" id="post-list" aria-live="polite"></div>
+      <div class="sidebar-bottom"><div class="repo-info"><span class="status-dot"></span><span id="repo-name">로컬 작업 공간</span></div><div class="bottom-actions"><button id="import-button">Markdown 가져오기</button><button id="help-button" aria-label="도움말 및 단축키">?</button></div><input id="import-file" type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden></div>
+    </aside>
+
+    <main class="workspace">
+      <header class="topbar">
+        <div class="topbar-start"><button class="icon-button menu-toggle" id="menu-toggle" aria-label="보관함 열기" aria-controls="sidebar" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-menu"/></svg></button><div class="breadcrumb"><svg class="icon" aria-hidden="true"><use href="#i-file"/></svg><strong id="document-label">내 작업 공간</strong></div></div>
+        <div class="topbar-actions"><span class="save-status" id="save-status" role="status"><span class="status-dot"></span> 준비 완료</span><button class="icon-button" id="focus-button" title="집중 모드 (Ctrl/⌘ + Shift + F)" aria-label="집중 모드" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-focus"/></svg></button><button class="button subtle" id="metadata-button" aria-expanded="false" aria-controls="metadata-panel" disabled><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg> 글 설정</button><button class="button primary" id="publish-button" disabled>발행 준비 <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
+      </header>
+
+      <div class="work-area">
+        <section class="welcome" id="welcome">
+          <div class="welcome-hero"><div class="welcome-copy"><div class="welcome-eyebrow">나의 글쓰기 공간</div><h1>오늘의 생각을,<br>한 편의 글로<span>.</span></h1><p>쓰다 만 이야기를 이어가도,<br>새로운 첫 문장을 시작해도 좋아요.</p><div class="welcome-actions"><button class="button primary large" id="welcome-new">새 글 쓰기 <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button><button class="button subtle large" id="welcome-import"><svg class="icon" aria-hidden="true"><use href="#i-upload"/></svg> 글 가져오기</button></div></div><div class="writing-illustration" aria-hidden="true"><div class="paper-sheet back"></div><div class="paper-sheet front"><span class="paper-label">A SPACE FOR YOUR IDEAS</span><span class="paper-heading">한 문장,<br>또 한 문장.</span><span class="paper-line"></span><span class="paper-line short"></span><span class="paper-sign">나만의 속도로 써 내려가요.</span></div><div class="illustration-pen"></div><div class="illustration-dot"></div></div></div>
+          <section class="home-section" aria-labelledby="recent-heading"><div class="section-heading"><div><h2 id="recent-heading">이어서 쓰기 <span id="home-draft-count">0</span></h2><p>작성 중인 글은 이 컴퓨터에 자동으로 저장돼요.</p></div><button class="text-button" id="home-drafts">모두 보기 <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div><div id="recent-drafts" class="recent-drafts"></div></section>
+          <section class="home-section" aria-labelledby="templates-heading"><div class="section-heading"><div><h2 id="templates-heading">빈 페이지가 막막하다면</h2><p>글의 틀을 고르고, 나만의 내용으로 채워보세요.</p></div></div><div id="home-templates" class="home-templates"></div></section>
+          <div class="home-footnote"><span class="status-dot"></span> 작성은 자유롭게. 블로그 반영은 발행 준비에서 확인한 뒤에.</div>
+          <div id="connection-error" class="callout error" hidden></div>
+        </section>
+
+        <section class="document" id="document" hidden aria-label="블로그 글 편집기">
+          <div class="recovery-banner" id="recovery-banner" hidden><span>이 브라우저에 아직 저장되지 않은 작성 내용이 있어요.</span><button id="recover-button">내용 복구</button><button id="discard-recovery">무시</button></div>
+          <div class="document-header"><div class="document-eyebrow"><span id="document-kind">DRAFT</span><span class="eyebrow-divider"></span><span id="document-category">나의 이야기</span></div><label class="visually-hidden" for="title">글 제목</label><textarea id="title" placeholder="제목을 입력하세요" rows="1" maxlength="300"></textarea><label class="visually-hidden" for="excerpt">글 소개</label><textarea id="excerpt" rows="1" placeholder="이 글을 소개하는 한 문장 (선택)" maxlength="1000"></textarea><div class="editor-tools"><div class="mode-switch" aria-label="편집 모드"><button id="mode-visual" aria-pressed="true">시각 편집</button><button id="mode-markdown" aria-pressed="false">Markdown</button></div><div class="editor-quick-actions"><button id="insert-images" aria-label="이미지" title="이미지 넣기"><svg class="icon" aria-hidden="true"><use href="#i-image"/></svg><span>이미지</span></button><button id="export-button" aria-label="내려받기" title="Markdown 내려받기"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg><span>내려받기</span></button><button id="history-button" aria-label="기록" title="이전 저장 내역"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg><span>기록</span></button></div></div><input id="image-files" type="file" accept="image/*" multiple hidden><div class="mode-notice" id="mode-notice" hidden></div></div>
+          <div class="editor-frame"><div id="editor"></div><div class="upload-indicator" id="upload-indicator" hidden role="status">이미지 업로드 중…</div></div>
+          <footer class="document-footer"><span id="word-count">0자 · 읽는 시간 1분</span><span>자동 저장 <span aria-hidden="true">·</span> <kbd>Ctrl/⌘ S</kbd> 지금 저장</span></footer>
+        </section>
+
+        <dialog class="metadata" id="metadata-panel" aria-labelledby="metadata-title">
+          <div class="panel-heading"><div><span class="eyebrow">글의 마지막 손질</span><h2 id="metadata-title">글 설정</h2></div><button class="icon-button" id="metadata-close" title="글 설정 닫기" aria-label="글 설정 닫기" autofocus><svg class="icon" aria-hidden="true"><use href="#i-close"/></svg></button></div>
+          <p class="panel-caption">독자가 만날 글의 모습을 정해요.</p>
+          <div class="settings-save-status" id="settings-save-status" role="status">모든 변경 저장됨</div>
+          <div class="field"><label for="category">카테고리</label><select id="category"></select></div>
+          <div class="field"><label for="tags">태그</label><input id="tags" placeholder="Python, 일상, 기록"><small>쉼표로 구분해서 입력하세요.</small></div>
+          <div class="field"><label for="post-date">작성 날짜</label><input id="post-date" type="date"><small id="timezone-label">Asia/Seoul 기준</small></div>
+          <div class="field"><label for="slug">주소 이름</label><input id="slug" placeholder="my-first-story" spellcheck="false"><small id="slug-help">비워두면 제목으로 자동 생성해요.</small></div>
+          <div class="field source-field" id="source-field" hidden><label>저장 파일</label><code id="source-path"></code></div>
+          <div class="field"><label for="teaser">대표 이미지 주소</label><div class="input-with-button"><input id="teaser" placeholder="/assets/images/…"><button id="teaser-upload" title="대표 이미지 업로드" aria-label="대표 이미지 업로드"><svg class="icon" aria-hidden="true"><use href="#i-upload"/></svg></button></div><input type="file" id="teaser-file" accept="image/*" hidden><img id="teaser-preview" alt="대표 이미지 미리보기" hidden></div>
+          <hr><h3>표시 옵션</h3>
+          <label class="toggle-row"><span><strong>목차</strong><small>제목으로 자동 목차 만들기</small></span><input id="toc" type="checkbox" checked></label>
+          <label class="toggle-row"><span><strong>댓글</strong><small>글 아래 댓글 영역 표시</small></span><input id="comments" type="checkbox" checked></label>
+          <label class="toggle-row"><span><strong>수식</strong><small>MathJax 수식 사용</small></span><input id="mathjax" type="checkbox"></label>
+          <label class="toggle-row"><span><strong>추천 글</strong><small>테마의 추천 글 속성</small></span><input id="feature" type="checkbox"></label>
+          <label class="toggle-row"><span><strong>사이트에 공개</strong><small>끄면 Jekyll이 글을 표시하지 않아요</small></span><input id="published" type="checkbox" checked></label>
+          <div class="metadata-note">초안은 발행하기 전까지 블로그에 올라가지 않아요.</div>
+          <button class="text-danger" id="delete-draft">이 초안 삭제</button>
+        </dialog>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="publish-dialog" aria-labelledby="publish-title" class="dialog publish-dialog"><div class="dialog-heading"><div><div class="eyebrow">READY WHEN YOU ARE</div><h2 id="publish-title">마지막으로 살펴볼까요?</h2></div><button class="icon-button" data-close="publish-dialog" aria-label="발행 검토 닫기">×</button></div><div id="publish-checks"></div><div class="publish-options" id="publish-options"><label class="publish-option"><input type="radio" name="publish-mode" value="save" checked><span><strong>파일로 저장</strong><small>블로그 저장소에 글을 반영해요. Git 작업은 하지 않아요.</small></span></label><label class="publish-option"><input type="radio" name="publish-mode" value="commit"><span><strong>저장 + Git 커밋</strong><small>이 글과 새 이미지의 변경 이력을 로컬에 기록해요.</small></span></label><label class="publish-option"><input type="radio" name="publish-mode" value="push"><span><strong>저장 + GitHub 전송</strong><small>커밋을 원격 저장소에 올려요. 이후 사이트 빌드를 확인하세요.</small></span></label></div><p class="dialog-note">GitHub 전송 성공은 사이트 배포 완료를 뜻하지 않아요. 빌드와 게시 상태는 별도로 확인해 주세요.</p><div id="publish-result" hidden></div><div class="dialog-footer"><button class="button subtle" data-close="publish-dialog">계속 편집</button><button class="button primary" id="confirm-publish" disabled>파일로 저장</button></div></dialog>
+  <dialog id="history-dialog" aria-labelledby="history-title" class="dialog"><div class="dialog-heading"><div><div class="eyebrow">VERSION HISTORY</div><h2 id="history-title">이어온 문장들</h2></div><button class="icon-button" data-close="history-dialog" aria-label="저장 기록 닫기">×</button></div><p class="dialog-note">이전 내용으로 돌아가도 현재 내용은 기록에 보관돼요.</p><div id="history-list"></div></dialog>
+  <dialog id="help-dialog" aria-labelledby="help-title" class="dialog"><div class="dialog-heading"><div><div class="eyebrow">A LITTLE HELP</div><h2 id="help-title">쓰기에 더 가까이</h2></div><button class="icon-button" data-close="help-dialog" aria-label="도움말 닫기">×</button></div><div class="help-grid"><span>지금 초안 저장</span><kbd>Ctrl / ⌘ + S</kbd><span>집중 모드</span><kbd>Ctrl / ⌘ + Shift + F</kbd><span>글 검색</span><kbd>/</kbd><span>새 글</span><kbd>N</kbd></div><p class="dialog-note">이미지를 본문에 붙여넣거나 끌어 놓으세요. 기존 글은 원문을 유지하기 위해 Markdown 모드로 열어요. 수식, Liquid, 복잡한 HTML은 Markdown으로 편집하는 편이 좋아요.</p><p class="dialog-note">미리보기는 편집을 돕기 위한 화면이에요. 블로그 테마, Liquid, MathJax 렌더링은 실제 사이트와 다를 수 있어요.</p></dialog>
+  <dialog id="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-description" class="dialog small-dialog"><div class="dialog-heading"><h2 id="confirm-title">확인</h2></div><p id="confirm-description"></p><div class="dialog-footer"><button class="button subtle" id="confirm-cancel">취소</button><button class="button primary" id="confirm-accept">계속</button></div></dialog>
+  <div id="toast-region" class="toast-region" role="status" aria-live="polite"></div>
+</body>
+</html>
