@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Blog Studio
+Comment=Write and publish posts from your own Jekyll blog folder
+Comment[ko]=내 Jekyll 블로그 폴더에서 편리하게 글쓰기
+Exec=BlogStudio
+Icon=blog-studio
+Terminal=false
+Categories=Office;
+StartupNotify=true

@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+# The runtime supplies APPDIR. The fallback also supports running AppDir/AppRun
+# directly; cd and pwd are shell built-ins, so an empty PATH remains supported.
+app_dir=${APPDIR:-$(CDPATH= cd -- "${0%/*}" && pwd)}
+exec "$app_dir/usr/bin/BlogStudio" "$@"

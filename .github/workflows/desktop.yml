@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
 
 permissions:
@@ -14,7 +15,7 @@ env:
 
 concurrency:
   group: desktop-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
 
 jobs:
   build:
@@ -29,7 +30,7 @@ jobs:
             name: windows-x86_64
             executable: BlogStudio.exe
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -57,9 +58,90 @@ jobs:
       - name: Test packaged application on Windows
         if: runner.os == 'Windows'
         run: python tests/package_smoke.py dist/${{ matrix.executable }}
+      - name: Build AppImage
+        if: runner.os == 'Linux'
+        run: python build_appimage.py --binary dist/BlogStudio-linux-x86_64 --output-dir dist
+      - name: Test AppImage without FUSE
+        if: runner.os == 'Linux'
+        run: xvfb-run -a python tests/package_smoke.py dist/BlogStudio-x86_64.AppImage
       - uses: actions/upload-artifact@v4
         with:
           name: BlogStudio-${{ matrix.name }}
           path: dist/*
           if-no-files-found: error
           retention-days: 30
+
+  release:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: BlogStudio-*
+          path: artifacts
+      - name: Collect and verify release files
+        shell: python
+        run: |
+          import hashlib
+          import os
+          from pathlib import Path
+          import re
+          import shutil
+
+          tag = os.environ['RELEASE_TAG']
+          if not re.fullmatch(r'v[0-9]+\.[0-9]+\.[0-9]+', tag):
+              raise SystemExit('Public releases require a stable tag such as v0.1.0.')
+          destination = Path('release-assets')
+          destination.mkdir()
+          for platform, names in (
+              ('windows-x86_64', ['BlogStudio.exe']),
+              ('ubuntu-x86_64', ['BlogStudio-linux-x86_64', 'BlogStudio-x86_64.AppImage']),
+          ):
+              source = Path('artifacts') / f'BlogStudio-{platform}'
+              for name in names:
+                  binary = source / name
+                  checksum = source / (name + '.sha256')
+                  expected = hashlib.sha256(binary.read_bytes()).hexdigest() + '  ' + name
+                  if checksum.read_text(encoding='ascii').strip() != expected:
+                      raise SystemExit(f'Checksum mismatch: {name}')
+                  shutil.copy2(binary, destination / name)
+                  shutil.copy2(checksum, destination / checksum.name)
+              shutil.copy2(source / 'build-info.json', destination / f'build-info-{platform}.json')
+          shutil.copy2(Path('artifacts/BlogStudio-ubuntu-x86_64/appimage-build-info.json'),
+                       destination / 'appimage-build-info.json')
+      - name: Publish complete release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if state=$(gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft'); then
+            if [ "$state" = false ]; then
+              echo "Release is already public; preserving its existing files."
+              exit 0
+            fi
+          else
+            cat > release-notes.md <<'NOTES'
+          README의 다운로드 버튼 또는 아래 Assets에서 운영체제에 맞는 파일을 받으세요.
+
+          - Windows 10/11 x86_64: **BlogStudio.exe**를 더블클릭합니다.
+          - Ubuntu 22.04 이상 x86_64: **BlogStudio-x86_64.AppImage**에 실행 권한을 허용한 뒤 실행합니다.
+          - FUSE 없는 Linux용: **BlogStudio-linux-x86_64**에 실행 권한을 허용한 뒤 실행합니다.
+
+          Python이 포함된 포터블 앱으로 별도 설치 과정은 없습니다. GitHub 전송에는 Git과 인증이 필요합니다.
+          실행 창에서 `_config.yml`과 `_posts`가 있는 블로그 폴더를 선택하세요.
+          `.sha256`과 빌드 정보 파일은 검증용이며 실행에는 필요하지 않습니다.
+          Windows EXE, Linux 실행 파일, AppImage의 실제 실행 검사를 통과한 빌드입니다.
+          NOTES
+            gh release create "$RELEASE_TAG" --verify-tag --draft \
+              --title "Blog Studio $RELEASE_TAG" --notes-file release-notes.md
+          fi
+          gh release upload "$RELEASE_TAG" release-assets/* --clobber
+          gh release edit "$RELEASE_TAG" --draft=false --latest

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise the shipped executable, with no Python or Git on its PATH.
+"""Exercise the shipped executable or AppImage, with no Python or Git on its PATH.
 
 Only disposable fixtures are opened; never points the app at the real blog.
 """
@@ -67,6 +67,12 @@ def main():
     args = parser.parse_args()
     source = args.executable.resolve()
     assert source.is_file(), source
+    is_appimage = source.suffix.lower() == '.appimage'
+    if is_appimage:
+        # Renaming an ELF binary is not sufficient: exercise a real type-2 image.
+        with source.open('rb') as stream:
+            header = stream.read(11)
+        assert header[:4] == b'\x7fELF' and header[8:11] == b'AI\x02', header
     with tempfile.TemporaryDirectory(prefix='blog-studio-package-') as folder:
         work = Path(folder)
         # Moving just this one file must be sufficient, including a Unicode path.
@@ -83,6 +89,10 @@ def main():
         env = os.environ.copy()
         env.update(PATH='', XDG_CONFIG_HOME=str(work / 'config'), XDG_STATE_HOME=str(work / 'state'),
                    LOCALAPPDATA=str(work / 'local'), APPDATA=str(work / 'roaming'))
+        if is_appimage:
+            # CI has no FUSE mount privilege. The AppImage runtime must extract
+            # and launch its bundled AppRun, still without Python/Git on PATH.
+            env['APPIMAGE_EXTRACT_AND_RUN'] = '1'
         # Check the actual frozen Tcl/Tk runtime without opening the real repository.
         subprocess.run([str(binary), '--check-gui'], cwd=work, env=env, check=True, timeout=30)
         # Construct and close the full launcher too: fonts, styles and widgets
@@ -127,7 +137,8 @@ def main():
         finally:
             finish(process)
         assert not (binary_folder / '.blog-studio').exists()
-        print('PASS: packaged GUI, static assets, Unicode paths, no Python/Git, token guard, save, restart, and shutdown')
+        kind = 'AppImage' if is_appimage else 'executable'
+        print(f'PASS ({kind}): packaged GUI, static assets, Unicode paths, no Python/Git, token guard, save, restart, and shutdown')
 
 
 if __name__ == '__main__':
