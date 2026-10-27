@@ -33,6 +33,10 @@ Blog Studio의 기능 변경은 이 저장소에서 관리합니다. 블로그 �
 `requirements-test.txt`에서 버전을 관리합니다. `static/vendor`를 업데이트할 때는
 원본 출처·라이선스·`manifest.json`의 해시도 함께 갱신합니다.
 
+`static/alignment.js`는 TOAST UI Editor 3.2.2의 문단 속성·HTML 변환·실행 취소 동작에
+맞춘 확장입니다. 편집기 버전을 변경할 때는 정렬한 문단의 굵게/링크 보존,
+Markdown 왕복 변환, 제목의 목차 주소, 실행 취소와 코드 블록 선택을 다시 검사하세요.
+
 Windows 실행 파일은 Windows에서, Linux 실행 파일은 지원하는 가장 오래된
 Ubuntu 환경에서 빌드합니다. 각각 실제 실행 파일 검사가 통과한 결과물을 사용합니다.
 

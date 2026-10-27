@@ -105,7 +105,7 @@ def main():
             assert state['site']['title'] == 'Package test'
             assert state['git']['available'] is False
             assert not state['drafts']
-            for path in ('/', '/static/app.js', '/static/style.css',
+            for path in ('/', '/static/app.js', '/static/alignment.js', '/static/style.css',
                          '/static/vendor/toastui-editor-all.min.js',
                          '/static/vendor/katex/fonts/KaTeX_Main-Regular.woff2'):
                 assert request(url, path), path

@@ -94,6 +94,36 @@ class BrowserTests(unittest.TestCase):
         expect(self.page.locator('#metadata-panel')).not_to_be_visible()
         expect(self.page.locator('#metadata-button')).to_have_attribute('aria-expanded', 'false')
 
+    def visual_markdown(self, title, body):
+        self.new_post(title)
+        self.page.locator('#mode-markdown').click()
+        self.page.locator('.toastui-editor-md-container [contenteditable=true]').fill(body)
+        self.page.locator('#mode-visual').click()
+        expect(self.page.locator('#mode-visual')).to_have_attribute('aria-pressed', 'true')
+        return self.saved()
+
+    def select_paragraphs(self, first, last=None):
+        # Exercise the browser's real selection, including inline marks, rather
+        # than reaching into the editor implementation or invoking its command.
+        self.page.locator('.toastui-editor-ww-container [contenteditable=true]').evaluate('''(editor, texts) => {
+            const paragraphs = [...editor.querySelectorAll('p')];
+            const first = paragraphs.find(node => node.textContent === texts[0]);
+            const last = paragraphs.find(node => node.textContent === texts[1]);
+            if (!first || !last) throw new Error('Missing alignment fixture paragraph');
+            editor.focus();
+            const range = document.createRange();
+            range.setStart(first, 0);
+            range.setEnd(last, last.childNodes.length);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+            document.dispatchEvent(new Event('selectionchange'));
+        }''', [first, last or first])
+
+    def paragraph(self, text, preview=False):
+        container = '.toastui-editor-md-preview' if preview else '.toastui-editor-ww-container'
+        return self.page.locator(container + ' p').filter(has_text=text).first
+
     def test_existing_body_and_hidden_state_survive_metadata_edit(self):
         post = '_posts/ai/llm/2025-01-01-sample-private.md'
         original = (self.repo / post).read_text('utf-8')
@@ -194,6 +224,178 @@ class BrowserTests(unittest.TestCase):
         self.assertEqual(server.split_post(text)[0]['categories'], ['AI', 'Deep-Learning'])
         self.assertTrue(list((self.repo / f'assets/images/posts/studio-{draft["id"]}').glob('*.png')))
         self.assertEqual(subprocess.check_output(['git', '-C', str(self.repo), 'log', '-1', '--format=%s'], text=True).strip(), 'fixture')
+
+    def test_alignment_preserves_formatting_across_modes_reload_export_and_publication(self):
+        first = '첫 굵은 글씨와 링크.'
+        untouched = '정렬을 바꾸지 않는 다음 문단.'
+        self.visual_markdown('문단 정렬 저장 검증',
+                             '첫 **굵은 글씨**와 [링크](https://example.invalid).\n\n' + untouched)
+        self.select_paragraphs(first)
+        self.page.locator('#align-center').click()
+        expect(self.paragraph(first)).to_have_css('text-align', 'center')
+        expect(self.paragraph(first).locator('strong')).to_have_text('굵은 글씨')
+        expect(self.paragraph(first).locator('a')).to_have_attribute('href', 'https://example.invalid')
+        self.assertNotEqual(self.paragraph(untouched).evaluate('(node) => getComputedStyle(node).textAlign'), 'center')
+        centered = self.saved()
+        self.assertRegex(centered['body'], r'text-align:\s*center')
+        self.assertIn('<strong>굵은 글씨</strong>', centered['body'])
+        self.assertIn(untouched, centered['body'])
+
+        self.page.locator('#mode-markdown').click()
+        expect(self.page.locator('#align-center')).to_be_disabled()
+        preview = self.page.locator('.toastui-editor-md-preview')
+        if not preview.is_visible():
+            self.page.locator('.toastui-editor-md-tab-container .tab-item').filter(has_text='미리보기').click()
+        expect(self.paragraph(first, preview=True)).to_have_css('text-align', 'center')
+        expect(self.paragraph(first, preview=True).locator('strong')).to_have_text('굵은 글씨')
+        self.page.locator('#mode-visual').click()
+        expect(self.paragraph(first)).to_have_css('text-align', 'center')
+        self.select_paragraphs(first)
+        self.page.locator('#align-right').click()
+        expect(self.paragraph(first)).to_have_css('text-align', 'right')
+        right = self.saved()
+        self.page.reload()
+        expect(self.page.locator('#title')).to_have_value('문단 정렬 저장 검증')
+        expect(self.paragraph(first)).to_have_css('text-align', 'right')
+        expect(self.paragraph(first).locator('strong')).to_have_text('굵은 글씨')
+        self.assertEqual(self.active()['body'], right['body'])
+        with self.page.expect_download() as download:
+            self.page.locator('#export-button').click()
+        exported = Path(download.value.path()).read_text('utf-8')
+        self.assertEqual(server.split_post(exported)[2], right['body'])
+        self.page.locator('#publish-button').click()
+        expect(self.page.locator('#confirm-publish')).to_be_enabled()
+        self.page.locator('#confirm-publish').click()
+        expect(self.page.locator('#publish-result')).to_contain_text('블로그 파일에 저장했어요', timeout=15000)
+        published = self.active()
+        post = (self.repo / published['source_path']).read_text('utf-8')
+        self.assertEqual(server.split_post(post)[2], right['body'])
+
+    def test_alignment_multi_paragraph_undo_left_reset_and_code_block(self):
+        first, second = '함께 정렬할 첫 문단.', '함께 정렬할 둘째 문단.'
+        untouched = '선택 밖의 문단.'
+        self.visual_markdown('정렬 선택과 실행 취소 검증',
+                             first + '\n\n' + second + '\n\n' + untouched + '\n\n```python\nprint("keep code")\n```')
+        self.select_paragraphs(first, second)
+        self.page.locator('#align-center').click()
+        for text in (first, second):
+            expect(self.paragraph(text)).to_have_css('text-align', 'center')
+        self.assertNotEqual(self.paragraph(untouched).evaluate('(node) => getComputedStyle(node).textAlign'), 'center')
+        self.page.keyboard.press('ArrowRight')
+        self.page.keyboard.insert_text(' 나중에 입력한 문장')
+        expect(self.paragraph(second)).to_contain_text('나중에 입력한 문장')
+        self.page.keyboard.press('Control+z')
+        expect(self.paragraph(second)).to_have_text(second)
+        expect(self.paragraph(first)).to_have_css('text-align', 'center')
+        expect(self.paragraph(second)).to_have_css('text-align', 'center')
+        self.page.keyboard.press('Control+z')
+        expect(self.paragraph(first)).to_be_visible()
+        expect(self.paragraph(second)).to_be_visible()
+        expect(self.paragraph(first)).not_to_have_css('text-align', 'center')
+        expect(self.paragraph(second)).not_to_have_css('text-align', 'center')
+        self.page.keyboard.press('Control+Shift+Z')
+        expect(self.paragraph(first)).to_have_css('text-align', 'center')
+        expect(self.paragraph(second)).to_have_css('text-align', 'center')
+        self.select_paragraphs(first, second)
+        self.page.locator('#align-left').click()
+        for text in (first, second):
+            self.assertIn(self.paragraph(text).evaluate('(node) => getComputedStyle(node).textAlign'), ('left', 'start'))
+        reset = self.saved()
+        self.assertNotRegex(reset['body'], r'text-align:\s*(center|right)')
+        self.page.set_viewport_size({'width': 390, 'height': 844})
+        for direction in ('left', 'center', 'right'):
+            button = self.page.locator('#align-' + direction)
+            expect(button).to_be_visible()
+            bounds = button.bounding_box()
+            self.assertGreaterEqual(bounds['x'], 0)
+            self.assertLessEqual(bounds['x'] + bounds['width'], 390)
+        self.assertLessEqual(self.page.evaluate('document.documentElement.scrollWidth'), 390)
+        code = self.page.locator('.toastui-editor-ww-container pre').filter(has_text='keep code').first
+        code.click()
+        for direction in ('left', 'center', 'right'):
+            expect(self.page.locator('#align-' + direction)).to_be_disabled()
+        self.assertEqual(self.saved()['body'], reset['body'])
+        expect(code).to_contain_text('print("keep code")')
+
+    def test_alignment_heading_and_unsupported_list_keep_blocks_separate(self):
+        heading, item, following = '정렬할 제목', '굵은 목록 항목', '목록 다음 일반 문단.'
+        self.visual_markdown('제목과 목록 정렬 검증',
+                             '## ' + heading + '\n\n- **굵은 목록** 항목\n\n' + following + '\n\n## ' + heading)
+        titles = self.page.locator('.toastui-editor-ww-container h2').filter(has_text=heading)
+        title = titles.first
+        title.click()
+        self.page.locator('#align-right').click()
+        expect(title).to_have_css('text-align', 'right')
+        heading_aligned = self.saved()
+        identifiers = titles.evaluate_all('(nodes) => nodes.map(node => node.id)')
+        self.assertEqual(len(identifiers), 2)
+        self.assertTrue(all(identifiers))
+        self.assertEqual(len(set(identifiers)), 2, 'Repeated heading text must retain distinct blog anchors')
+        self.select_paragraphs(item)
+        for direction in ('left', 'center', 'right'):
+            expect(self.page.locator('#align-' + direction)).to_be_disabled()
+        self.assertEqual(self.saved()['body'], heading_aligned['body'])
+        self.select_paragraphs(item, following)
+        expect(self.page.locator('#align-center')).to_be_disabled()
+        self.page.locator('#mode-markdown').click()
+        self.page.locator('#mode-visual').click()
+        expect(titles.first).to_have_css('text-align', 'right')
+        self.assertNotEqual(titles.nth(1).evaluate('(node) => getComputedStyle(node).textAlign'), 'right')
+        self.assertEqual(titles.evaluate_all('(nodes) => nodes.map(node => node.id)'), identifiers)
+        expect(self.paragraph(item).locator('strong')).to_have_text('굵은 목록')
+        self.assertTrue(self.paragraph(item).evaluate('(node) => !!node.closest("li")'))
+        self.assertFalse(self.paragraph(following).evaluate('(node) => !!node.closest("li, h2")'))
+        self.assertNotEqual(self.paragraph(following).evaluate('(node) => getComputedStyle(node).textAlign'), 'center')
+
+    def test_alignment_preserves_mixed_html_heading_anchors_after_later_edit(self):
+        self.visual_markdown('HTML 제목과 기존 목차 주소 검증', '<h2>Same</h2>\n\n## Same\n\n## Same')
+        titles = self.page.locator('.toastui-editor-ww-container h2').filter(has_text='Same')
+        expect(titles).to_have_count(3)
+        titles.first.click()
+        self.page.locator('#align-center').click()
+        raw_aligned = self.saved()
+        self.assertEqual(raw_aligned['body'].count('## Same'), 2,
+                         'An existing HTML heading must not renumber following Markdown anchors')
+        html_identifier = titles.first.get_attribute('id')
+        self.assertTrue(html_identifier)
+        self.assertNotIn(html_identifier, ('same', 'same-1'))
+        titles.nth(1).click()
+        self.page.locator('#align-right').click()
+        self.saved()
+        self.assertEqual(titles.evaluate_all('(nodes) => nodes.map(node => node.id)'),
+                         [html_identifier, 'same', 'same-1'])
+        self.page.locator('#mode-markdown').click()
+        self.context.grant_permissions(['clipboard-read', 'clipboard-write'])
+        self.page.evaluate('(text) => navigator.clipboard.writeText(text)', '\n\n## Same')
+        self.page.locator('.toastui-editor-md-container [contenteditable=true]').click()
+        self.page.keyboard.press('Control+End')
+        self.page.keyboard.press('Control+v')
+        # A real paste followed immediately by a mode switch must retain the
+        # new heading, without waiting for autosave or a rendering delay.
+        self.page.locator('#mode-visual').click()
+        appended = self.saved()
+        self.assertIn('id="same-2"', appended['body'], 'A later duplicate must not reuse an existing blog anchor')
+        self.page.reload()
+        expect(titles).to_have_count(4)
+        self.assertEqual(titles.evaluate_all('(nodes) => nodes.map(node => node.id)'),
+                         [html_identifier, 'same', 'same-1', 'same-2'])
+        expect(titles.first).to_have_css('text-align', 'center')
+        expect(titles.nth(1)).to_have_css('text-align', 'right')
+
+        # "title" is a named DOM property. Sanitization must not silently drop
+        # the anchor selected for a heading with that common English title.
+        self.visual_markdown('예약 이름을 사용하는 제목 검증', '## Title\n\n제목 아래의 일반 문단.')
+        reserved_title = self.page.locator('.toastui-editor-ww-container h2').filter(has_text='Title')
+        reserved_title.click()
+        self.page.locator('#align-center').click()
+        reserved = self.saved()
+        identifier = reserved_title.get_attribute('id')
+        self.assertTrue(identifier)
+        self.assertRegex(reserved['body'], r'<h2\b[^>]*\sid="title"',
+                         'The published heading must retain its original #title anchor')
+        self.page.reload()
+        expect(reserved_title).to_have_attribute('id', identifier)
+        expect(reserved_title).to_have_css('text-align', 'center')
 
     def test_offline_recovery_and_download_use_latest_unsaved_text(self):
         draft = self.new_post('오프라인 복구')

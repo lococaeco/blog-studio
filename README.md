@@ -2,8 +2,8 @@
 
 [![Desktop builds](https://github.com/lococaeco/blog-studio/actions/workflows/desktop.yml/badge.svg)](https://github.com/lococaeco/blog-studio/actions/workflows/desktop.yml)
 
-Jekyll 블로그를 위한 로컬 글쓰기 프로그램입니다. 시각 편집과 Markdown, 이미지
-붙여넣기, 자동 저장, 이전 버전 복원, GitHub 전송을 지원합니다.
+Jekyll 블로그를 위한 로컬 글쓰기 프로그램입니다. 시각 편집과 Markdown, 문단 정렬,
+이미지 붙여넣기, 자동 저장, 이전 버전 복원, GitHub 전송을 지원합니다.
 
 [![Windows 다운로드](https://img.shields.io/badge/Windows-EXE_다운로드-167D8D?style=for-the-badge)](https://github.com/lococaeco/blog-studio/releases/latest/download/BlogStudio.exe)
 [![Ubuntu 다운로드](https://img.shields.io/badge/Ubuntu-AppImage_다운로드-E95420?style=for-the-badge)](https://github.com/lococaeco/blog-studio/releases/latest/download/BlogStudio-x86_64.AppImage)

@@ -153,6 +153,13 @@ input::placeholder,textarea::placeholder { color:#7d8781 }
 .mode-switch { display:flex; background:var(--cream); padding:3px; border-radius:7px; gap:2px }
 .mode-switch button { padding:7px 12px; font-size:12px; border-radius:5px; color:var(--muted); white-space:nowrap }
 .mode-switch button[aria-pressed=true] { background:#fff; color:var(--ink); box-shadow:0 1px 4px #273d2a14; font-weight:600 }
+.alignment-tools { display:flex; align-items:center; gap:3px }
+.alignment-label { font-size:11px; color:var(--muted); margin-right:6px }
+.alignment-tools button { display:grid; place-items:center; width:36px; height:36px; border-radius:6px; color:var(--muted) }
+.alignment-tools .icon { width:19px; height:19px }
+.alignment-tools button:hover:not(:disabled) { background:var(--cream); color:var(--ink) }
+.alignment-tools button[aria-pressed=true] { background:var(--accent-soft); color:var(--accent-dark) }
+.alignment-tools button:disabled { opacity:.4; cursor:default }
 .editor-quick-actions { display:flex; gap:4px }
 .editor-quick-actions button { display:inline-flex; align-items:center; justify-content:center; gap:6px; min-width:36px; min-height:36px; padding:7px 8px; border-radius:6px; color:var(--muted); font-size:13px; white-space:nowrap }
 .editor-quick-actions button:hover { background:var(--cream); color:var(--ink) }
@@ -326,6 +333,7 @@ input::placeholder,textarea::placeholder { color:#7d8781 }
   .editor-quick-actions { gap:1px }
   .editor-quick-actions button { min-width:30px; padding:6px }
   .editor-quick-actions span { display:none }
+  .alignment-tools { order:3; flex-basis:100%; padding-top:5px }
   .editor-frame { padding:0 22px }
   .document-footer { margin:18px 22px 0; font-size:11px; gap:8px }
   .toastui-editor-defaultUI-toolbar { padding:0 3px!important }

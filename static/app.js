@@ -379,6 +379,7 @@
     state.editor = new toastui.Editor({
       el: $('editor'), height: 'auto', minHeight: '430px', initialEditType: 'wysiwyg', previewStyle: $('editor').clientWidth < 800 ? 'tab' : 'vertical', hideModeSwitch: true, usageStatistics: false, language: 'ko-KR', placeholder: '여기에 첫 문장을 적어보세요. 이미지를 붙여넣을 수도 있어요.', autofocus: false,
       linkAttributes: { target: '_blank', rel: 'noopener noreferrer' },
+      plugins: [window.StudioAlignment.plugin],
       customHTMLSanitizer: html => window.DOMPurify ? window.DOMPurify.sanitize(html, { USE_PROFILES: { html: true } }) : '',
       toolbarItems: [['heading', 'bold', 'italic', 'strike'], ['hr', 'quote'], ['ul', 'ol', 'task'], ['table', 'link', 'image'], ['code', 'codeblock']],
       hooks: { addImageBlobHook: (blob, callback) => {
@@ -388,7 +389,7 @@
           .catch(error => notify(error.message, true));
         return false;
       } },
-      events: { change: () => { changed(); queueRenderImages(); }, changeMode: () => updateMode() },
+      events: { change: () => { changed(); queueRenderImages(); updateAlignment(); }, changeMode: () => updateMode() },
     });
     const observer = new MutationObserver(records => {
       if (records.some(record => record.type === 'childList' && [...record.addedNodes].some(node => node.nodeType === Node.ELEMENT_NODE))) queueRenderImages();
@@ -402,6 +403,7 @@
       if (next !== previewStyle) { state.editor.changePreviewStyle(next); previewStyle = next; }
     }).observe($('editor'));
     installClipboardImageHandlers();
+    updateAlignment();
   }
 
   function installClipboardImageHandlers() {
@@ -497,15 +499,29 @@
     $('mode-notice').hidden = !protectsRawMarkdown();
     $('mode-notice').textContent = visual ? '시각 편집을 사용하면 Markdown 서식이 정리될 수 있어요. 수식·Liquid·복잡한 HTML은 Markdown 모드를 권장해요.' : '기존 글의 원문을 유지하며 편집 중이에요. 미리보기의 테마·Liquid·수식은 실제 사이트와 다를 수 있어요.';
     queueRenderImages();
+    updateAlignment();
+  }
+
+  function updateAlignment() {
+    const selection = state.editor ? window.StudioAlignment.selection(state.editor) : { enabled: false, value: null };
+    const labels = { left: '왼쪽 정렬', center: '가운데 정렬', right: '오른쪽 정렬' };
+    for (const alignment of ['left', 'center', 'right']) {
+      const button = $('align-' + alignment);
+      button.disabled = !selection.enabled;
+      button.setAttribute('aria-pressed', String(selection.enabled && selection.value === alignment));
+      button.title = selection.enabled ? labels[alignment] : (selection.reason || '정렬할 본문 문단에 커서를 놓아주세요.');
+    }
   }
 
   async function changeMode(mode) {
     if (!state.editor) return;
+    window.StudioAlignment.flushPendingChanges(state.editor);
     if (mode === 'wysiwyg' && !state.editor.isWysiwygMode() && protectsRawMarkdown()) {
       const accepted = await confirm('시각 편집으로 전환할까요?', '수식, Liquid 태그, 복잡한 HTML이 포함된 글은 서식이 달라질 수 있어요. 원문을 정확히 유지하려면 Markdown 모드에서 작성해 주세요.', '시각 편집으로 전환');
       if (!accepted) return;
     }
     state.editor.changeMode(mode, true);
+    state.editor.focus();
     updateMode();
   }
 
@@ -841,6 +857,25 @@
     $('focus-button').onclick = () => { state.focus = !state.focus; $('app').classList.toggle('focus-mode', state.focus); $('focus-button').setAttribute('aria-pressed', String(state.focus)); };
     $('mode-visual').onclick = act(() => changeMode('wysiwyg'));
     $('mode-markdown').onclick = act(() => changeMode('markdown'));
+    for (const id of ['mode-visual', 'mode-markdown']) {
+      $(id).addEventListener('mousedown', act(event => {
+        // Commit pending browser input before focus leaves the editor. A late
+        // Markdown DOM observation must not run against the other mode's model.
+        event.preventDefault();
+        if (state.editor) window.StudioAlignment.flushPendingChanges(state.editor);
+      }));
+    }
+    for (const alignment of ['left', 'center', 'right']) {
+      const button = $('align-' + alignment);
+      button.addEventListener('mousedown', event => event.preventDefault());
+      button.onclick = act(() => {
+        if (!state.editor || state.busy) return;
+        window.StudioAlignment.apply(state.editor, alignment);
+        updateAlignment();
+      });
+    }
+    // Let the editor and its nested code views finish handling the selection.
+    document.addEventListener('selectionchange', () => requestAnimationFrame(updateAlignment));
     $('insert-images').onclick = () => $('image-files').click();
     $('image-files').onchange = act(async event => { const files = [...event.target.files]; event.target.value = ''; await insertImages(files); });
     $('teaser-upload').onclick = () => $('teaser-file').click();

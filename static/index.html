@@ -14,6 +14,7 @@
   <script defer src="/static/vendor/ko-kr.js"></script>
   <script defer src="/static/vendor/katex/katex.min.js"></script>
   <script defer src="/static/vendor/katex/auto-render.min.js"></script>
+  <script defer src="/static/alignment.js"></script>
   <script defer src="/static/app.js"></script>
 </head>
 <body>
@@ -33,6 +34,9 @@
     <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
     <symbol id="i-focus" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/></symbol>
     <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h4m4 0h8M4 17h10m4 0h2"/><circle cx="10" cy="7" r="2"/><circle cx="16" cy="17" r="2"/></symbol>
+    <symbol id="i-align-left" viewBox="0 0 24 24"><path d="M4 5h16M4 10h10M4 15h16M4 20h10"/></symbol>
+    <symbol id="i-align-center" viewBox="0 0 24 24"><path d="M4 5h16M7 10h10M4 15h16M7 20h10"/></symbol>
+    <symbol id="i-align-right" viewBox="0 0 24 24"><path d="M4 5h16M10 10h10M4 15h16M10 20h10"/></symbol>
   </defs></svg>
   <div class="app-shell" id="app">
     <button class="sidebar-backdrop" id="sidebar-backdrop" tabindex="-1" aria-label="보관함 닫기" hidden></button>
@@ -67,7 +71,11 @@
 
         <section class="document" id="document" hidden aria-label="블로그 글 편집기">
           <div class="recovery-banner" id="recovery-banner" hidden><span>이 브라우저에 아직 저장되지 않은 작성 내용이 있어요.</span><button id="recover-button">내용 복구</button><button id="discard-recovery">무시</button></div>
-          <div class="document-header"><div class="document-eyebrow"><span id="document-kind">DRAFT</span><span class="eyebrow-divider"></span><span id="document-category">나의 이야기</span></div><label class="visually-hidden" for="title">글 제목</label><textarea id="title" placeholder="제목을 입력하세요" rows="1" maxlength="300"></textarea><label class="visually-hidden" for="excerpt">글 소개</label><textarea id="excerpt" rows="1" placeholder="이 글을 소개하는 한 문장 (선택)" maxlength="1000"></textarea><div class="editor-tools"><div class="mode-switch" aria-label="편집 모드"><button id="mode-visual" aria-pressed="true">시각 편집</button><button id="mode-markdown" aria-pressed="false">Markdown</button></div><div class="editor-quick-actions"><button id="insert-images" aria-label="이미지" title="이미지 넣기"><svg class="icon" aria-hidden="true"><use href="#i-image"/></svg><span>이미지</span></button><button id="export-button" aria-label="내려받기" title="Markdown 내려받기"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg><span>내려받기</span></button><button id="history-button" aria-label="기록" title="이전 저장 내역"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg><span>기록</span></button></div></div><input id="image-files" type="file" accept="image/*" multiple hidden><div class="mode-notice" id="mode-notice" hidden></div></div>
+          <div class="document-header"><div class="document-eyebrow"><span id="document-kind">DRAFT</span><span class="eyebrow-divider"></span><span id="document-category">나의 이야기</span></div><label class="visually-hidden" for="title">글 제목</label><textarea id="title" placeholder="제목을 입력하세요" rows="1" maxlength="300"></textarea><label class="visually-hidden" for="excerpt">글 소개</label><textarea id="excerpt" rows="1" placeholder="이 글을 소개하는 한 문장 (선택)" maxlength="1000"></textarea><div class="editor-tools"><div class="mode-switch" aria-label="편집 모드"><button id="mode-visual" aria-pressed="true">시각 편집</button><button id="mode-markdown" aria-pressed="false">Markdown</button></div><div class="alignment-tools" role="group" aria-label="문단 정렬"><span class="alignment-label">정렬</span>
+              <button type="button" id="align-left" aria-label="왼쪽 정렬" title="왼쪽 정렬" aria-pressed="false" disabled><svg class="icon" aria-hidden="true"><use href="#i-align-left"/></svg></button>
+              <button type="button" id="align-center" aria-label="가운데 정렬" title="가운데 정렬" aria-pressed="false" disabled><svg class="icon" aria-hidden="true"><use href="#i-align-center"/></svg></button>
+              <button type="button" id="align-right" aria-label="오른쪽 정렬" title="오른쪽 정렬" aria-pressed="false" disabled><svg class="icon" aria-hidden="true"><use href="#i-align-right"/></svg></button>
+            </div><div class="editor-quick-actions"><button id="insert-images" aria-label="이미지" title="이미지 넣기"><svg class="icon" aria-hidden="true"><use href="#i-image"/></svg><span>이미지</span></button><button id="export-button" aria-label="내려받기" title="Markdown 내려받기"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg><span>내려받기</span></button><button id="history-button" aria-label="기록" title="이전 저장 내역"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg><span>기록</span></button></div></div><input id="image-files" type="file" accept="image/*" multiple hidden><div class="mode-notice" id="mode-notice" hidden></div></div>
           <div class="editor-frame"><div id="editor"></div><div class="upload-indicator" id="upload-indicator" hidden role="status">이미지 업로드 중…</div></div>
           <footer class="document-footer"><span id="word-count">0자 · 읽는 시간 1분</span><span>자동 저장 <span aria-hidden="true">·</span> <kbd>Ctrl/⌘ S</kbd> 지금 저장</span></footer>
         </section>
