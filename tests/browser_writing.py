@@ -20,7 +20,17 @@ class WritingTests(unittest.TestCase):
         self.new_post('글쓰기 도구 검사')
         self.page.locator('#mode-markdown').click()
         editable = self.page.locator('.toastui-editor-md-container [contenteditable=true]')
-        editable.fill(body)
+        # Exercise TOAST UI's native paste path. Multiline contenteditable.fill
+        # bypasses it and can leave a single DOM text node with embedded newlines
+        # while the editor expects one node per Markdown line. Await this save,
+        # not the previous draft's still-visible "saved" status.
+        self.context.grant_permissions(['clipboard-read', 'clipboard-write'])
+        self.page.evaluate('(text) => navigator.clipboard.writeText(text)', body)
+        editable.click()
+        self.page.keyboard.press('Control+a')
+        with self.page.expect_response(lambda response: response.url.endswith('/api/drafts') and response.request.method == 'POST') as saved:
+            self.page.keyboard.press('Control+v')
+        self.assertEqual(saved.value.json()['body'], body, 'Markdown fixture must retain every original line break')
         self.saved()
         self.page.locator('#mode-visual').click()
         return self.saved()
@@ -58,6 +68,8 @@ class WritingTests(unittest.TestCase):
         expect(paragraph.locator('strong span')).to_have_css('color', 'rgb(198, 40, 40)')
         expect(paragraph.locator('strong span')).to_have_css('background-color', 'rgb(255, 240, 163)')
         before = self.saved()['body']
+        self.assertIn('## 문단 제목\n\n<p style="text-align: center;">', before,
+                      'HTML paragraph must not swallow the preceding Markdown heading boundary')
         self.assertIn('다른 문단입니다.', before)
         self.assertIn('https://example.invalid', before)
         self.page.locator('#mode-markdown').click()
@@ -66,6 +78,8 @@ class WritingTests(unittest.TestCase):
         self.page.reload()
         expect(self.page.locator('.toastui-editor-ww-container strong u')).to_have_text('강조')
         expect(self.page.locator('.toastui-editor-ww-container strong span')).to_have_css('background-color', 'rgb(255, 240, 163)')
+        expect(self.page.locator('.toastui-editor-ww-container h2')).to_have_text('문단 제목')
+        expect(paragraph).to_have_css('text-align', 'center')
         self.assertEqual(self.active()['body'], before)
         with self.page.expect_download() as download:
             self.page.locator('#export-button').click()
@@ -104,6 +118,24 @@ class WritingTests(unittest.TestCase):
         self.assertIn('원문 치환', self.saved()['body'])
         self.page.keyboard.press('Control+z')
         self.assertIn('literal', self.saved()['body'])
+
+    def test_aligned_html_boundaries_after_markdown_blocks_survive_roundtrip(self):
+        self.content('## Boundary heading\n\nHeading target.\n\n* List item\n\nList target.\n\n```python\nprint(1)\n```\n\nCode target.\n\n> Quoted text\n\nQuote target.\n\n| Column |\n| --- |\n| Cell |\n\nTable target.\n\n---\n\nRule target.')
+        targets = ['Heading target.', 'List target.', 'Code target.', 'Quote target.', 'Table target.', 'Rule target.']
+        for text in targets:
+            self.select_text(text)
+            self.page.locator('#align-center').click()
+        before = self.saved()['body']
+        self.assertIn('## Boundary heading\n\n<p style="text-align: center;">Heading target.', before)
+        for text in targets:
+            self.assertIn('\n\n<p style="text-align: center;">' + text, before)
+        for _ in range(2):
+            self.page.locator('#mode-markdown').click()
+            self.page.locator('#mode-visual').click()
+            expect(self.page.locator('.toastui-editor-ww-container h2')).to_have_text('Boundary heading')
+            for text in targets:
+                expect(self.page.locator('.toastui-editor-ww-container p').filter(has_text=text)).to_have_css('text-align', 'center')
+        self.assertEqual(self.saved()['body'], before, 'HTML separators must not grow across repeated mode switches')
 
     def test_outline_navigation_block_movement_and_drag_preserve_paragraphs(self):
         self.content('## 첫 제목\n\n첫 문단 **굵게**.\n\n둘째 문단 [링크](https://example.invalid).\n\n### 하위 제목\n\n따라가는 하위 내용.\n\n## 끝 제목\n\n마지막 문단.')

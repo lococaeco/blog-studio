@@ -98,7 +98,7 @@ class CloudService:
         if not isinstance(path, str) or not path.startswith('/') or path.startswith('//') or '\\' in path or '\x00' in path:
             raise CloudError('GitHub API 경로가 올바르지 않습니다.')
         headers = {'Accept': 'application/vnd.github+json', 'X-GitHub-Api-Version': '2022-11-28',
-                   'User-Agent': 'BlogStudio/0.2.0'}
+                   'User-Agent': 'BlogStudio/0.2.1'}
         token = self.token()
         if token:
             headers['Authorization'] = 'Bearer ' + token

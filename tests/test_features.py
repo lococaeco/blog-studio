@@ -57,7 +57,11 @@ class FeatureTests(RepositoryCase):
         with zipfile.ZipFile(stream, 'w', zipfile.ZIP_DEFLATED) as archive:
             archive.writestr('blog-studio-backup.json', json.dumps({'format': 1}))
             for path, content in files.items():
-                archive.writestr(path, json.dumps(content, ensure_ascii=False) if isinstance(content, (dict, list)) else content)
+                info = zipfile.ZipInfo()
+                # Preserve hostile archive bytes instead of letting ZipInfo's
+                # constructor sanitize them on the runner's operating system.
+                info.filename = info.orig_filename = path
+                archive.writestr(info, json.dumps(content, ensure_ascii=False) if isinstance(content, (dict, list)) else content)
         return stream.getvalue()
 
     def test_archive_excludes_credentials_and_repository_configuration(self):
@@ -75,6 +79,19 @@ class FeatureTests(RepositoryCase):
             self.assertNotIn('.blog-studio/token.txt', names)
         with zipfile.ZipFile(io.BytesIO(self.features.archive(drafts_only=True))) as archive:
             self.assertFalse(any(name.startswith(('_posts/', 'assets/images/')) for name in archive.namelist()))
+
+    def test_full_restore_keeps_draft_linked_to_matching_restored_post(self):
+        draft = self.studio.open_post(POST_PATH)
+        backup = self.features.archive()
+        original = (self.repo / POST_PATH).read_bytes()
+        (self.repo / POST_PATH).unlink()
+        self.studio._draft_path(draft['id']).unlink()
+        self.features.restore_archive(backup)
+        restored = self.studio.get_draft(draft['id'])
+        self.assertEqual(restored['source_path'], POST_PATH)
+        self.assertEqual(restored['source_revision'], hashlib.sha256(original).hexdigest())
+        self.assertEqual((self.repo / POST_PATH).read_bytes(), original)
+        self.assertEqual(restored['_meta'], draft['_meta'])
 
     def test_invalid_structured_content_rejects_entire_restore_before_write(self):
         new_post = '_posts/ai/llm/2025-01-01-should-not-exist.md'

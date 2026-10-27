@@ -155,6 +155,11 @@
     return result;
   }
 
+  async function saveBeforeTransfer() {
+    if (state.uploads) throw new Error('이미지 처리가 끝나면 다시 시도해 주세요.');
+    return saveDraft();
+  }
+
   function updateDraftList(draft) {
     if (!state.bootstrap) return;
     const item = { id: draft.id, title: draft.title, updated_at: draft.updated_at, source_path: draft.source_path };
@@ -530,14 +535,14 @@
 
   async function uploadImage(file) {
     if (!state.draft) throw new Error('먼저 글을 열어주세요.');
-    if (window.StudioMedia?.optimize) file = await window.StudioMedia.optimize(file);
-    if (!file.type.startsWith('image/')) throw new Error('이미지 파일을 선택해 주세요.');
-    if (file.size > 12 * 1024 * 1024) throw new Error('이미지는 12 MB 이하로 올려주세요.');
     const draftId = state.draft.id;
     state.uploads += 1;
     $('upload-indicator').hidden = false;
     $('upload-indicator').textContent = '이미지 ' + state.uploads + '개 업로드 중…';
     try {
+      if (window.StudioMedia?.optimize) file = await window.StudioMedia.optimize(file);
+      if (!file.type.startsWith('image/')) throw new Error('이미지 파일을 선택해 주세요.');
+      if (file.size > 12 * 1024 * 1024) throw new Error('이미지는 12 MB 이하로 올려주세요.');
       const data = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(String(reader.result).split(',')[1]);
@@ -545,7 +550,7 @@
         reader.readAsDataURL(file);
       });
       const result = await api('/api/upload', 'POST', { draft_id: draftId, name: file.name || 'image.png', data });
-      if (state.draft.id !== draftId) throw new Error('이미지를 올리던 글이 변경됐어요. 해당 글에서 다시 넣어주세요.');
+      if (state.draft?.id !== draftId) throw new Error('이미지를 올리던 글이 변경됐어요. 해당 글에서 다시 넣어주세요.');
       return result;
     } finally {
       state.uploads -= 1;
@@ -946,10 +951,10 @@
     $('new-post').disabled = true; $('welcome-new').disabled = true;
     try {
       await refreshBootstrap();
-      window.StudioLibrary?.install({ api, notify, saveDraft, getDraft: () => state.draft,
+      window.StudioLibrary?.install({ api, notify, saveDraft: saveBeforeTransfer, getDraft: () => state.draft,
         getEditor: () => state.editor, getBootstrap: () => state.bootstrap, refresh: refreshBootstrap,
         newDraft, loadDraft, currentBody, confirm, setBusy });
-      window.StudioCloud?.install({ host: $('cloud-tools-root'), api, notify, saveDraft, getDraft: () => state.draft });
+      window.StudioCloud?.install({ host: $('cloud-tools-root'), api, notify, saveDraft: saveBeforeTransfer, getDraft: () => state.draft });
       $('new-post').disabled = false; $('welcome-new').disabled = false;
       let last;
       try { last = localStorage.getItem(storageKey('last-draft')); } catch (_) { /* Optional convenience. */ }

@@ -43,7 +43,11 @@ class BrowserTests(unittest.TestCase):
         cls.worker.start()
         cls.base = f'http://127.0.0.1:{cls.http.server_port}'
         cls.pw = sync_playwright().start()
-        executable = os.environ.get('STUDIO_BROWSER') or shutil.which('google-chrome') or shutil.which('chromium')
+        executable = os.environ.get('STUDIO_BROWSER')
+        # CI installs the browser pinned by requirements-test.txt. Prefer it
+        # over an unrelated Chrome version preinstalled on the runner.
+        if not executable and not Path(cls.pw.chromium.executable_path).is_file():
+            executable = shutil.which('google-chrome') or shutil.which('chromium')
         cls.browser = cls.pw.chromium.launch(**({'executable_path': executable} if executable else {}), headless=True, args=['--no-sandbox'])
 
     @classmethod

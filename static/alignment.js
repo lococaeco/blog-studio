@@ -83,14 +83,24 @@
 
   function markdownBlock(nodeInfo, context, doc) {
     let node = nodeInfo.node;
+    const previous = nodeInfo.parent && nodeInfo.index > 0 ? nodeInfo.parent.child(nodeInfo.index - 1) : null;
+    const hasCaption = item => item?.type.name === 'paragraph' && item.content.content.some(child => child.type.name === 'image' && Object.hasOwn(child.attrs.htmlAttrs || {}, 'data-studio-caption'));
+    // The raw-block writer already closes an HTML paragraph with a blank line.
+    // Consume the editor's following separator paragraph without adding another
+    // blank line that its Markdown importer would remove on the next round trip.
+    if (node.type.name === 'paragraph' && !node.content.size && !nodeAlignment(node) &&
+        previous?.type.name === 'paragraph' && (nodeAlignment(previous) || hasCaption(previous))) {
+      return { rawHTML: ['', ''] };
+    }
     const id = node.type.name === 'heading' && doc ? headingCollisionIds(doc).get(node) : null;
     if (id) node = node.type.create({ ...node.attrs, htmlAttrs: { ...node.attrs.htmlAttrs, ...headingIdAttrs(id) } }, node.content, node.marks);
-    const captionImage = node.type.name === 'paragraph' && node.content.content.some(child => child.type.name === 'image' && Object.hasOwn(child.attrs.htmlAttrs || {}, 'data-studio-caption'));
+    const captionImage = hasCaption(node);
     if (!nodeAlignment(node) && !captionImage && !(node.type.name === 'heading' && node.attrs.htmlAttrs?.id)) {
       return context.origin ? context.origin() : {};
     }
     const container = document.createElement('div');
     container.append(serializeNode(node));
+    for (const element of container.querySelectorAll('[data-raw-html]')) element.removeAttribute('data-raw-html');
     let html = window.DOMPurify.sanitize(container.innerHTML, { USE_PROFILES: { html: true } });
     const publicId = node.type.name === 'heading' && publicHeadingId(node);
     if (publicId && node.attrs.htmlAttrs?.['data-studio-heading-id']) {
@@ -104,8 +114,15 @@
     // inside raw HTML, where Jekyll does not parse them. Supply complete HTML
     // and an empty *conversion-local copy*, leaving the editor document intact.
     nodeInfo.node = node.copy();
+    const previousHtmlHeading = previous?.type.name === 'heading' &&
+      (nodeAlignment(previous) || previous.attrs.htmlAttrs?.id || (doc && headingCollisionIds(doc).has(previous)));
+    // The pinned writer turns on stopNewline before writing a raw paragraph.
+    // That suppresses the preceding Markdown block's pending closeBlock(),
+    // yielding e.g. "## Heading<p>..." unless we provide its separator here.
+    // Paragraphs write their own newline; our HTML headings already end in two.
+    const before = node.type.name === 'paragraph' && previous && previous.type.name !== 'paragraph' && !previousHtmlHeading ? '\n\n' : '';
     const followingBlock = nodeInfo.parent && nodeInfo.index < nodeInfo.parent.childCount - 1;
-    return { rawHTML: [html + (node.type.name === 'heading' && followingBlock ? '\n\n' : ''), ''] };
+    return { rawHTML: [before + html + (node.type.name === 'heading' && followingBlock ? '\n\n' : ''), ''] };
   }
 
   function selectedBlocks(editor) {

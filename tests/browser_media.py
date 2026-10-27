@@ -128,6 +128,48 @@ class MediaTests(unittest.TestCase):
         self.assertTrue(result['apngSame'])
         self.assertTrue(result['smallSame'])
 
+    def test_optimization_blocks_draft_switch_until_attachment_finishes(self):
+        original = self.new_post('최적화 중에도 유지할 초안')
+        draft_count = len(list((self.repo / '.blog-studio/drafts').glob('*.json')))
+        requests = []
+        self.page.on('request', lambda request: requests.append(request.post_data_json)
+                     if request.url.endswith('/api/upload') else None)
+        self.page.evaluate('''() => {
+            const optimize = StudioMedia.optimize;
+            StudioMedia.optimize = file => new Promise(resolve => {
+                window.finishMediaOptimization = () => {
+                    StudioMedia.optimize = optimize;
+                    resolve(file);
+                };
+            });
+        }''')
+        self.page.locator('#image-files').set_input_files(self.image_file())
+        expect(self.page.locator('#upload-indicator')).to_be_visible()
+        expect(self.page.locator('#upload-indicator')).to_contain_text('1개 업로드 중')
+        self.page.locator('#new-post').click()
+        expect(self.page.locator('#toast-region')).to_contain_text('이미지 업로드가 끝나면 새 글을 만들어주세요.')
+        self.page.locator('#home-button').click()
+        expect(self.page.locator('#toast-region')).to_contain_text('이미지 업로드가 끝나면 홈으로 이동해 주세요.')
+        expect(self.page.locator('#welcome')).not_to_be_visible()
+        expect(self.page.locator('#title')).to_have_value(original['title'])
+        self.assertEqual(self.active()['id'], original['id'])
+        self.assertEqual(len(list((self.repo / '.blog-studio/drafts').glob('*.json'))), draft_count)
+        self.assertEqual(requests, [], 'Optimization must finish before the upload request starts')
+
+        self.page.evaluate('window.finishMediaOptimization()')
+        expect(self.page.locator('.toastui-editor-ww-container img[src]')).to_have_count(1)
+        expect(self.page.locator('#upload-indicator')).not_to_be_visible()
+        attached = self.saved()
+        self.assertEqual(attached['id'], original['id'])
+        self.assertEqual([request['draft_id'] for request in requests], [original['id']])
+        self.assertIn(f'/assets/images/posts/studio-{original["id"]}/', attached['body'])
+        self.assertEqual(len(list((self.repo / '.blog-studio/uploads' / original['id']).iterdir())), 1)
+        self.page.locator('#new-post').click()
+        expect(self.page.locator('#title')).to_have_value('')
+        self.assertNotEqual(self.active()['id'], original['id'])
+        self.page.locator('#home-button').click()
+        expect(self.page.locator('#welcome')).to_be_visible()
+
 
 if __name__ == '__main__':
     unittest.main(verbosity=2)

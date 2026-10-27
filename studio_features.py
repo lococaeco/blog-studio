@@ -280,6 +280,10 @@ class Features:
                 if len(infos) > 10001 or sum(i.file_size for i in infos) > MAX_EXPANDED:
                     raise FeatureError('압축을 푼 파일의 용량이나 개수가 너무 큽니다.')
                 for info in infos:
+                    # ZipInfo normalizes backslashes on Windows and truncates
+                    # NULs on every OS. Check the original archive name too.
+                    if info.orig_filename != info.filename:
+                        raise FeatureError('백업에 허용되지 않은 경로가 있습니다.')
                     if info.filename in result or stat.S_ISLNK(info.external_attr >> 16) or info.flag_bits & 1:
                         raise FeatureError('중복 파일, 링크, 암호화 파일이 들어 있는 백업은 사용할 수 없습니다.')
                     if info.filename != 'blog-studio-backup.json' and not self.allowed_archive_path(info.filename):
@@ -385,7 +389,9 @@ class Features:
                 source_matches = False
                 if isinstance(source, str) and source.startswith('_posts/'):
                     try:
-                        source_matches = hashlib.sha256(self.studio.safe_path(source).read_bytes()).hexdigest() == draft.get('source_revision')
+                        source_path = self.studio.safe_path(source)
+                        source_bytes = source_path.read_bytes() if source_path.exists() else (files.get(source) if not drafts_only else None)
+                        source_matches = source_bytes is not None and hashlib.sha256(source_bytes).hexdigest() == draft.get('source_revision')
                     except (OSError, ValueError):
                         source_matches = False
                 baseline = draft['_baseline']
