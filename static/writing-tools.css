@@ -1,0 +1,32 @@
+.studio-writing-tools { margin:0 0 12px; font-size:12px; color:var(--ink,#26302d) }
+.writing-action-row { display:flex; align-items:center; gap:7px; flex-wrap:wrap; padding:8px 0 }
+.writing-action-row button,.writing-panel button { border:1px solid var(--line,#dce3dc); background:var(--paper,#fff); color:inherit; border-radius:6px; min-height:32px; padding:5px 9px; font:inherit; cursor:pointer }
+.writing-action-row button:hover:not(:disabled),.writing-panel button:hover:not(:disabled) { background:var(--accent-soft,#e7f2ee) }
+.writing-action-row button[aria-pressed=true],.writing-action-row button[aria-expanded=true] { background:var(--accent-soft,#e7f2ee); color:var(--accent-dark,#14695f) }
+.writing-action-row button:disabled,.writing-panel button:disabled,.writing-color:has(input:disabled) { opacity:.45; cursor:default }
+.writing-color { display:inline-flex; align-items:center; gap:5px; cursor:pointer; white-space:nowrap }
+.writing-color input { width:29px; height:29px; padding:2px; border:1px solid var(--line,#dce3dc); border-radius:5px; cursor:pointer; background:#fff }
+.writing-spacer { flex:1 }
+.writing-panel { border:1px solid var(--line,#dce3dc); border-radius:9px; padding:13px; margin:8px 0; background:#f7faf7 }
+.writing-panel[hidden] { display:none }
+.writing-panel-heading { display:flex; align-items:center; gap:12px; margin-bottom:12px }
+.writing-panel-heading strong { margin-right:auto; font-weight:600 }
+.writing-panel-heading>button { padding:0 8px; border:0; min-height:28px; font-size:20px; background:transparent }
+.writing-find-fields { display:grid; grid-template-columns:1fr 1fr; gap:10px }
+.writing-find-fields label { display:grid; gap:5px; min-width:0 }
+.writing-find-fields input { width:100%; min-width:0; padding:8px; border:1px solid var(--line,#dce3dc); border-radius:6px; background:#fff; font:inherit }
+.writing-panel-actions { display:flex; gap:7px; align-items:center; flex-wrap:wrap; margin-top:10px }
+.writing-checkbox { display:inline-flex; align-items:center; gap:4px; white-space:nowrap; font-size:11px }
+.writing-checkbox input { accent-color:var(--accent,#147d73) }
+#find-result { margin-right:auto; font-size:11px; color:var(--muted,#66766a) }
+.studio-find-match { background:#ffe586!important; outline:1px solid #e1bd39; border-radius:2px }
+.writing-help { margin:0 0 9px; font-size:11px; line-height:1.7; color:var(--muted,#66766a) }
+.writing-outline-list { max-height:300px; overflow:auto; list-style:none; margin:0; padding:0; display:grid; gap:5px }
+.writing-outline-item { display:flex; align-items:center; gap:4px; min-width:0 }
+.writing-outline-item.dragging { opacity:.5 }
+.writing-outline-item[draggable=true] { cursor:grab }
+.writing-outline-jump { flex:1; min-width:0; display:flex; align-items:center; gap:8px; text-align:left }
+.writing-outline-jump>span:last-child { overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
+.writing-block-kind { color:var(--accent-dark,#14695f); background:var(--accent-soft,#e7f2ee); border-radius:3px; padding:2px 4px; font-size:10px; flex:none }
+@media(max-width:600px) { .writing-action-row { gap:6px } .writing-spacer { display:none } .writing-find-fields { grid-template-columns:1fr } .writing-panel { padding:10px } .writing-panel-heading { gap:6px } }
+@media print { .studio-writing-tools { display:none } }

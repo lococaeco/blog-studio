@@ -76,7 +76,8 @@ def main() -> None:
     executable = output / (name + ('.exe' if sys.platform == 'win32' else ''))
     checksum = hashlib.sha256(executable.read_bytes()).hexdigest()
     (output / (executable.name + '.sha256')).write_text(f'{checksum}  {executable.name}\n', encoding='ascii')
-    info = {'file': executable.name, 'sha256': checksum, 'bytes': executable.stat().st_size,
+    from updater import CURRENT_VERSION
+    info = {'version': CURRENT_VERSION, 'file': executable.name, 'sha256': checksum, 'bytes': executable.stat().st_size,
             'os': sys.platform, 'architecture': platform.machine(), 'python': platform.python_version(),
             'pyinstaller': importlib.metadata.version('PyInstaller'), 'libc': platform.libc_ver()}
     (output / 'build-info.json').write_text(json.dumps(info, indent=2) + '\n', encoding='utf-8')

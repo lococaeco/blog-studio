@@ -85,7 +85,8 @@
     let node = nodeInfo.node;
     const id = node.type.name === 'heading' && doc ? headingCollisionIds(doc).get(node) : null;
     if (id) node = node.type.create({ ...node.attrs, htmlAttrs: { ...node.attrs.htmlAttrs, ...headingIdAttrs(id) } }, node.content, node.marks);
-    if (!nodeAlignment(node) && !(node.type.name === 'heading' && node.attrs.htmlAttrs?.id)) {
+    const captionImage = node.type.name === 'paragraph' && node.content.content.some(child => child.type.name === 'image' && Object.hasOwn(child.attrs.htmlAttrs || {}, 'data-studio-caption'));
+    if (!nodeAlignment(node) && !captionImage && !(node.type.name === 'heading' && node.attrs.htmlAttrs?.id)) {
       return context.origin ? context.origin() : {};
     }
     const container = document.createElement('div');

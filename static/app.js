@@ -379,7 +379,7 @@
     state.editor = new toastui.Editor({
       el: $('editor'), height: 'auto', minHeight: '430px', initialEditType: 'wysiwyg', previewStyle: $('editor').clientWidth < 800 ? 'tab' : 'vertical', hideModeSwitch: true, usageStatistics: false, language: 'ko-KR', placeholder: '여기에 첫 문장을 적어보세요. 이미지를 붙여넣을 수도 있어요.', autofocus: false,
       linkAttributes: { target: '_blank', rel: 'noopener noreferrer' },
-      plugins: [window.StudioAlignment.plugin],
+      plugins: [window.StudioAlignment.plugin, window.StudioWriting?.plugin, window.StudioMedia?.plugin].filter(Boolean),
       customHTMLSanitizer: html => window.DOMPurify ? window.DOMPurify.sanitize(html, { USE_PROFILES: { html: true } }) : '',
       toolbarItems: [['heading', 'bold', 'italic', 'strike'], ['hr', 'quote'], ['ul', 'ol', 'task'], ['table', 'link', 'image'], ['code', 'codeblock']],
       hooks: { addImageBlobHook: (blob, callback) => {
@@ -403,6 +403,9 @@
       if (next !== previewStyle) { state.editor.changePreviewStyle(next); previewStyle = next; }
     }).observe($('editor'));
     installClipboardImageHandlers();
+    window.StudioWriting?.install({ editor: state.editor, host: $('writing-tools-root'), notify });
+    window.StudioMedia?.install({ editor: state.editor, host: $('media-tools-root'), api, notify,
+      getDraft: () => state.draft, upload: uploadImage, imageURL, getBootstrap: () => state.bootstrap, changed });
     updateAlignment();
   }
 
@@ -527,6 +530,7 @@
 
   async function uploadImage(file) {
     if (!state.draft) throw new Error('먼저 글을 열어주세요.');
+    if (window.StudioMedia?.optimize) file = await window.StudioMedia.optimize(file);
     if (!file.type.startsWith('image/')) throw new Error('이미지 파일을 선택해 주세요.');
     if (file.size > 12 * 1024 * 1024) throw new Error('이미지는 12 MB 이하로 올려주세요.');
     const draftId = state.draft.id;
@@ -698,6 +702,7 @@
       $('publish-result').replaceChildren(resultBox);
       await refreshBootstrap();
       notify(result.message || message, !!result.push_error);
+      if (result.pushed && result.commit) window.StudioCloud?.track(result.commit, result.url);
     } catch (error) {
       $('publish-result').hidden = false;
       $('publish-result').replaceChildren(callout(error.message, 'error'));
@@ -745,7 +750,9 @@
           notify('이전 버전으로 복원했어요.');
         } finally { setBusy(false); }
       });
-      row.append(description, button); $('history-list').append(row);
+      const compare = textElement('button', '변경 비교');
+      compare.onclick = act(() => window.StudioLibrary.compareHistory(draftId, item.id));
+      row.append(description, compare, button); $('history-list').append(row);
     }
     if (!(result.items || []).length) $('history-list').append(textElement('p', '아직 이전 저장 기록이 없어요.', 'empty-list'));
   }
@@ -939,6 +946,10 @@
     $('new-post').disabled = true; $('welcome-new').disabled = true;
     try {
       await refreshBootstrap();
+      window.StudioLibrary?.install({ api, notify, saveDraft, getDraft: () => state.draft,
+        getEditor: () => state.editor, getBootstrap: () => state.bootstrap, refresh: refreshBootstrap,
+        newDraft, loadDraft, currentBody, confirm, setBusy });
+      window.StudioCloud?.install({ host: $('cloud-tools-root'), api, notify, saveDraft, getDraft: () => state.draft });
       $('new-post').disabled = false; $('welcome-new').disabled = false;
       let last;
       try { last = localStorage.getItem(storageKey('last-draft')); } catch (_) { /* Optional convenience. */ }

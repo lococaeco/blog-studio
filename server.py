@@ -36,6 +36,10 @@ HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 from runtime import RepositoryLock, RepositoryInUseError, run_external, external_program_environment
+from studio_features import Features, FeatureError
+from theme_preview import ThemePreview
+from cloud_services import CloudService, CloudError
+from updater import Updater, UpdateError
 
 logger = logging.getLogger('blog_studio.server')
 KST = dt.timezone(dt.timedelta(hours=9))
@@ -123,6 +127,10 @@ class Studio:
             self.safe_path(f'.blog-studio/{folder}').mkdir(parents=True, exist_ok=True)
         self.config = yaml.safe_load(self.safe_path('_config.yml').read_text('utf-8')) or {}
         self.categories = self._categories()
+        self.cloud = CloudService(self)
+        self.features = Features(self, self.cloud)
+        self.preview = ThemePreview(self)
+        self.updater = Updater(self)
 
     def safe_path(self, value: str):
         if not isinstance(value, str) or not value or '\\' in value or '\x00' in value:
@@ -166,6 +174,8 @@ class Studio:
         settings = os.environ.copy()
         settings['GIT_TERMINAL_PROMPT'] = '0'
         settings['GCM_INTERACTIVE'] = 'never'
+        if args and args[0] in ('push', 'fetch', 'ls-remote') and getattr(self, 'cloud', None):
+            settings.update(self.cloud.git_environment())
         if env:
             settings.update(env)
         try:
@@ -206,7 +216,7 @@ class Studio:
             rel = path.relative_to(self.repo).as_posix()
             try:
                 data = self._read_post(rel)
-                posts.append({k: data[k] for k in ('title', 'excerpt', 'category', 'date', 'published', 'tags')} | {'path': rel})
+                posts.append({k: data[k] for k in ('title', 'excerpt', 'category', 'date', 'published', 'tags')} | {'path': rel, 'url': self.post_url(data)})
             except (StudioError, OSError, UnicodeError) as e:
                 unreadable.append({'path': rel, 'error': str(e)})
         drafts = []
@@ -223,7 +233,17 @@ class Studio:
                          'id': digest(str(self.repo).encode())[:16]},
                 'categories': self.categories, 'posts': sorted(posts, key=lambda p: p['date'], reverse=True),
                 'drafts': sorted(drafts, key=lambda d: d['updated_at'], reverse=True),
-                'git': self.git_status(), 'templates': TEMPLATES, 'unreadable': unreadable}
+                'git': self.git_status(), 'templates': TEMPLATES + [dict(t, description='내 템플릿') for t in self.features.templates()['items'] if t['kind'] == 'template'], 'unreadable': unreadable}
+
+    def post_url(self, draft):
+        custom = draft.get('_meta', {}).get('permalink')
+        if custom:
+            return self.bootstrap_site_url() + '/' + str(custom).lstrip('/')
+        categories = draft.get('_meta', {}).get('categories') or []
+        if isinstance(categories, str):
+            categories = [categories]
+        path = '/'.join(slugify(str(c)) for c in categories)
+        return self.bootstrap_site_url() + '/' + (path + '/' if path else '') + quote(draft['slug']) + '/'
 
     def _defaults(self):
         return {'title': '', 'excerpt': '', 'body': '', 'date': now()[:10], 'slug': '',
@@ -734,6 +754,8 @@ class StudioHTTPServer(ThreadingHTTPServer):
         # list before joining, so a second close must not release the lock early.
         with self._close_lock:
             super().server_close()
+            self.studio.features.close()
+            self.studio.preview.close()
             self._repo_lock.release()
 
 
@@ -764,7 +786,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.send_header('Referrer-Policy', 'no-referrer')
         self.send_header('Cross-Origin-Resource-Policy', 'same-origin')
-        self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; font-src 'self' data:; connect-src 'self'; object-src 'none'; frame-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
+        self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https: http:; font-src 'self' data:; connect-src 'self'; object-src 'none'; frame-src http://127.0.0.1:*; frame-ancestors 'none'; base-uri 'none'; form-action 'self'")
         if download:
             self.send_header('Content-Disposition', "attachment; filename*=UTF-8''" + quote(download))
         self.end_headers()
@@ -776,8 +798,8 @@ class Handler(BaseHTTPRequestHandler):
     def _run(self, fn):
         try:
             fn()
-        except StudioError as e:
-            self._json({'error': str(e)}, e.status)
+        except (StudioError, FeatureError, CloudError, UpdateError) as e:
+            self._json({'error': str(e)}, getattr(e, 'status', 400))
         except (FileNotFoundError, IsADirectoryError):
             self._json({'error': '파일을 찾을 수 없습니다.'}, 404)
         except (ValueError, UnicodeError, yaml.YAMLError):
@@ -806,6 +828,22 @@ class Handler(BaseHTTPRequestHandler):
             self._json(studio.get_draft(path.split('/')[-1]))
         elif path == '/api/history':
             self._json(studio.history(arg('id')))
+        elif path == '/api/templates':
+            self._json(studio.features.templates())
+        elif path == '/api/jobs':
+            self._json(studio.features.job(arg('id')))
+        elif path == '/api/backup':
+            self._send(studio.features.archive(), 'application/zip', download='blog-studio-backup.zip')
+        elif path == '/api/preview/status':
+            self._json(studio.preview.status())
+        elif path == '/api/cloud/status':
+            self._json(studio.cloud.status())
+        elif path == '/api/cloud/login-status':
+            self._json(studio.cloud.login_status())
+        elif path == '/api/cloud/repositories':
+            self._json(studio.cloud.repositories())
+        elif path == '/api/update/check':
+            self._json(studio.updater.check())
         elif path == '/api/export':
             d = studio.get_draft(arg('id'))
             self._send(studio.export(d['id']).encode('utf-8'), 'text/markdown; charset=utf-8', download=f'{d["date"]}-{d["slug"] or slugify(d["title"])}.md')
@@ -842,7 +880,8 @@ class Handler(BaseHTTPRequestHandler):
             size = int(self.headers.get('Content-Length', '0'))
         except ValueError as e:
             raise StudioError('올바르지 않은 요청 크기입니다.') from e
-        if size < 0 or size > MAX_REQUEST:
+        limit = 172 * 1024 * 1024 if urlparse(self.path).path == '/api/backup/restore' else MAX_REQUEST
+        if size < 0 or size > limit:
             raise StudioError('요청이 너무 큽니다.', 413)
         payload = json.loads(self.rfile.read(size))
         if not isinstance(payload, dict):
@@ -851,6 +890,18 @@ class Handler(BaseHTTPRequestHandler):
         routes = {'/api/drafts': studio.save_draft, '/api/upload': studio.upload,
                   '/api/check': lambda p: studio.check(p.get('id')), '/api/publish': studio.publish,
                   '/api/restore': studio.restore, '/api/import': studio.import_markdown}
+        routes.update({
+            '/api/templates/save': studio.features.save_template, '/api/templates/delete': studio.features.delete_template,
+            '/api/history/diff': studio.features.history_diff, '/api/link-preview': studio.features.link_preview,
+            '/api/backup/restore': studio.features.restore_upload,
+            '/api/sync': lambda p: studio.features.start_job('sync', studio.features.sync),
+            '/api/preview/build': lambda p: studio.features.start_job('preview', lambda: studio.preview.build(p.get('id'))),
+            '/api/preview/prepare': lambda p: studio.features.start_job('preview', studio.preview.prepare),
+            '/api/cloud/connect': studio.cloud.connect_token, '/api/cloud/login': lambda p: studio.cloud.start_login(),
+            '/api/cloud/disconnect': lambda p: studio.cloud.disconnect(), '/api/cloud/author': studio.cloud.configure_author,
+            '/api/cloud/clone': studio.cloud.clone, '/api/cloud/deployment': studio.cloud.deployment, '/api/cloud/retry': studio.cloud.retry,
+            '/api/update/download': lambda p: studio.updater.download(), '/api/update/apply': lambda p: studio.updater.apply(),
+        })
         fn = routes.get(urlparse(self.path).path)
         if not fn:
             raise StudioError('API를 찾을 수 없습니다.', 404)

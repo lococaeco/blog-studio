@@ -287,6 +287,7 @@ def run_headless(args):
     try:
         repo = validate_repository(repo)
         process.start(repo, preferred_port(repo, args.port, preferences))
+        process.server.studio.updater.shutdown_callback = stop.set
         remember_process(process)
         write_ready_file(args.ready_file, process)
         # Machine-readable output must also work with non-reconfigurable pipes.
@@ -334,6 +335,7 @@ class DesktopWindow:
         self.busy = False
         self.closing = False
         self.preferences = load_preferences()
+        self.pending_cloud = None
         repo = args.repo or discover_repository(self.preferences)
         self.repo = tk.StringVar(value=str(repo) if repo else '')
         self.status = tk.StringVar(value='폴더를 선택하고 작성 시작을 눌러 주세요.')
@@ -447,8 +449,11 @@ class DesktopWindow:
         self.folder_hint = tk.Label(card, text='글과 초안이 저장된 블로그 폴더를 선택하세요.', font=small,
                                     background=c['surface'], foreground=c['muted'], anchor='w', justify='left')
         self.folder_hint.grid(row=2, column=0, sticky='ew')
+        self.clone_button = ttk.Button(card, text='GitHub에서 블로그 가져오기', command=self.connect_cloud,
+                                       style='Studio.TButton', takefocus=True)
+        self.clone_button.grid(row=3, column=0, sticky='w', pady=(12, 0))
         action = tk.Frame(card, background=c['surface'])
-        action.grid(row=3, column=0, sticky='ew', pady=(20, 0))
+        action.grid(row=4, column=0, sticky='ew', pady=(20, 0))
         action.columnconfigure(0, weight=1)
         self.remember_label = tk.Label(action, text='선택한 폴더는 다음에도 기억해요.', font=small,
                                       background=c['surface'], foreground=c['muted'], anchor='w', justify='left')
@@ -525,7 +530,7 @@ class DesktopWindow:
 
     def activate_focused(self, event):
         focused = self.window.focus_get()
-        buttons = (self.choose_button, self.start_button, self.browser_button, self.quit_button)
+        buttons = (self.choose_button, self.clone_button, self.start_button, self.browser_button, self.quit_button)
         if focused in buttons:
             focused.invoke()
         elif focused == self.entry:
@@ -542,6 +547,17 @@ class DesktopWindow:
             self.repo.set(selected)
             self.set_phase('준비됨', '폴더를 선택했어요. 작성 시작을 눌러 주세요.')
 
+    def connect_cloud(self):
+        if self.busy or self.process.server is not None or self.closing:
+            return
+        from desktop_cloud import open_cloud_dialog
+
+        def cloned(path, cloud):
+            self.pending_cloud = cloud
+            self.repo.set(str(path))
+            self.set_phase('블로그 연결됨', '블로그를 가져왔어요. 작성 시작을 눌러 주세요.')
+        open_cloud_dialog(self.window, cloned)
+
     def start(self):
         if self.busy or self.process.server is not None:
             return
@@ -553,7 +569,7 @@ class DesktopWindow:
             return
         self.repo.set(str(repo))
         self.busy = True
-        for widget in (self.entry, self.choose_button, self.start_button):
+        for widget in (self.entry, self.choose_button, self.clone_button, self.start_button):
             widget.configure(state='disabled')
         self.set_phase('편집기 여는 중', '잠시만 기다려 주세요. 블로그 폴더를 연결하고 있어요.')
         self.start_button.configure(text='시작하는 중…')
@@ -561,6 +577,13 @@ class DesktopWindow:
         def worker():
             try:
                 self.process.start(repo, preferred_port(repo, self.args.port, self.preferences))
+                studio = self.process.server.studio
+                if self.pending_cloud:
+                    studio.cloud = self.pending_cloud
+                    studio.cloud.studio = studio
+                    studio.features.cloud = studio.cloud
+                    self.pending_cloud = None
+                studio.updater.shutdown_callback = lambda: self.events.put(('update_shutdown', None))
                 remember_process(self.process)
                 write_ready_file(self.args.ready_file, self.process)
                 self.events.put(('started', None))
@@ -590,6 +613,9 @@ class DesktopWindow:
                 if event == 'stopped':
                     self.window.destroy()
                     return
+                if event == 'update_shutdown':
+                    self.close(force=True)
+                    continue
                 if event == 'started':
                     self.busy = False
                     self.address.set(self.process.url)
@@ -608,7 +634,7 @@ class DesktopWindow:
                     if self.closing:
                         self.window.destroy()
                         return
-                    for widget in (self.entry, self.choose_button, self.start_button):
+                    for widget in (self.entry, self.choose_button, self.clone_button, self.start_button):
                         widget.configure(state='normal')
                     self.start_button.configure(text='작성 시작')
                     self.set_phase('연결을 확인해 주세요', '실행하지 못했어요. 폴더와 오류 내용을 확인해 주세요.', error=True)
@@ -683,6 +709,10 @@ def parse_args(argv=None):
 
 
 def main(argv=None):
+    from updater import maybe_handle_helper
+    helper_result = maybe_handle_helper(argv)
+    if helper_result is not None:
+        return helper_result
     args = parse_args(argv)
     log_path = config_directory() / 'desktop.log'
     try:

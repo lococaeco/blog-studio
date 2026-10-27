@@ -3,7 +3,8 @@
 [![Desktop builds](https://github.com/lococaeco/blog-studio/actions/workflows/desktop.yml/badge.svg)](https://github.com/lococaeco/blog-studio/actions/workflows/desktop.yml)
 
 Jekyll 블로그를 위한 로컬 글쓰기 프로그램입니다. 시각 편집과 Markdown, 문단 정렬,
-이미지 붙여넣기, 자동 저장, 이전 버전 복원, GitHub 전송을 지원합니다.
+이미지 편집, 자동 저장, 변경 비교, GitHub 전송과 게시 확인을 지원합니다.
+사용자 템플릿, 백업·초안 동기화, 실제 테마 미리보기와 앱 업데이트도 제공합니다.
 
 [![Windows 다운로드](https://img.shields.io/badge/Windows-EXE_다운로드-167D8D?style=for-the-badge)](https://github.com/lococaeco/blog-studio/releases/latest/download/BlogStudio.exe)
 [![Ubuntu 다운로드](https://img.shields.io/badge/Ubuntu-AppImage_다운로드-E95420?style=for-the-badge)](https://github.com/lococaeco/blog-studio/releases/latest/download/BlogStudio-x86_64.AppImage)
@@ -27,6 +28,7 @@ Python 설치 없이 사용할 수 있습니다. [버전별 다운로드와 변�
    포터블 앱입니다. 체크섬과 빌드 정보 파일은 검증용이며 실행에 필요하지 않습니다.
 3. 실행 창에서 **블로그 폴더**를 선택하고 **작성 시작**을 누릅니다.
    `_config.yml`과 `_posts`가 있는 기존 블로그 폴더를 선택하세요.
+   다른 컴퓨터에서는 **GitHub에서 블로그 가져오기**로 새 폴더에 복제할 수 있습니다.
 4. 기본 브라우저에서 글을 작성합니다. 다음 실행부터 폴더와 포트를 기억합니다.
 5. 종료하기 전 **모든 변경 저장됨**을 확인하고 실행 창에서 종료합니다.
 
@@ -47,8 +49,10 @@ AppImage 실행 시 FUSE 오류가 나면 `./BlogStudio-x86_64.AppImage --appima
 ![Blog Studio 시작 창 — 예시 폴더](docs/images/launcher.png)
 
 **GitHub 전송에는 해당 컴퓨터에 설치된 Git과 GitHub 인증이 필요합니다.**
-Git 없이도 작성·임시저장·파일 저장은 가능합니다. GitHub CLI를 사용한다면
-`gh auth login` 후 `gh auth setup-git --hostname github.com`으로 Git을 연결합니다.
+Git 없이도 작성·임시저장·파일 저장은 가능합니다. **GitHub · 업데이트**에서
+GitHub CLI를 이용한 브라우저 로그인 또는 개인 액세스 토큰으로 연결합니다.
+토큰은 앱 실행 중 메모리에만 보관하며 종료하면 지워집니다.
+새 버전은 같은 메뉴에서 확인·다운로드·검증 후 적용하고 앱을 다시 실행할 수 있습니다.
 
 ## 블로그와 프로그램의 관계
 
@@ -67,8 +71,9 @@ Git 없이도 작성·임시저장·파일 저장은 가능합니다. GitHub CLI
 프로그램 코드를 업데이트해도 선택한 블로그의 글·초안은 유지됩니다.
 기존 버전과 같은 사용자 설정 경로를 사용하므로 기억한 폴더와 포트도 이어집니다.
 
-다른 컴퓨터에서는 블로그 저장소를 복제한 뒤 그 폴더를 선택합니다. `.blog-studio`
-초안과 기록은 프로그램의 GitHub 전송 대상에 포함되지 않으므로 별도로 백업해야 합니다.
+다른 컴퓨터에서는 시작 창에서 블로그 저장소를 가져온 뒤 그 폴더를 선택합니다.
+**백업·동기화**에서 ZIP으로 초안과 기록을 옮기거나 비공개 GitHub 저장소로
+초안을 동기화할 수 있습니다. 블로그의 공개 저장소에는 초안을 전송하지 않습니다.
 기존 프로그램이 같은 블로그를 사용 중이라면 먼저 종료하세요.
 
 현재 `lococaeco.github.io`의 Jekyll 구조와 `_data/categories.yml`의
@@ -104,7 +109,8 @@ python3 start.py --headless --repo ../lococaeco.github.io --no-browser
 
 기본 주소는 `http://127.0.0.1:4310`이며, 포트 충돌 시 다른 주소를 안내합니다.
 서버 전용 진입점인 `server.py`는 `--repo`가 필수입니다.
-서버는 로컬 컴퓨터에서만 열리고, GitHub 인증 정보를 웹 화면에 입력받지 않습니다.
+서버는 로컬 컴퓨터에서만 열립니다. GitHub 토큰은 로컬 연결 화면에서만 입력하며
+파일·로그·브라우저 저장소에 보관하지 않습니다.
 
 ## 개발과 검사
 
@@ -122,7 +128,7 @@ Windows에서는 `.venv/bin/python`을 `.venv\Scripts\python.exe`로 바꿉니�
 ```sh
 .venv/bin/python -m pip install -r requirements-test.txt
 .venv/bin/python -m playwright install chromium
-.venv/bin/python tests/browser_smoke.py
+.venv/bin/python -m unittest discover -s tests -p 'browser_*.py'
 ```
 
 설치된 Chrome을 쓰려면 `STUDIO_BROWSER`에 실행 파일 경로를 지정할 수 있습니다.
@@ -165,6 +171,8 @@ Artifacts에서도 받을 수 있습니다. 이 개발용 파일은 로그인이
 
 - `desktop.py`, `start.py`: 시작 창과 소스 실행 환경
 - `server.py`, `runtime.py`: 로컬 API, 저장, Git, 중복 실행 방지
+- `studio_features.py`, `theme_preview.py`: 템플릿, 백업·동기화, 링크 카드, Jekyll 미리보기
+- `cloud_services.py`, `desktop_cloud.py`, `updater.py`: GitHub 연결·복제·게시 확인과 앱 업데이트
 - `static/`: 편집 화면과 오프라인 라이브러리
 - `tests/`: 단위·브라우저·패키지 검사와 합성 블로그
 - `build_desktop.py`, `build_appimage.py`, `.github/workflows/`: 실행 파일 빌드·검사·릴리스

@@ -49,7 +49,7 @@ jobs:
           python -m playwright install --with-deps chromium
       - name: Test browser workflows
         if: runner.os == 'Linux'
-        run: python tests/browser_smoke.py
+        run: python -m unittest discover -s tests -p "browser_*.py"
       - name: Build standalone application
         run: python build_desktop.py
       - name: Test packaged application on Linux
@@ -58,12 +58,17 @@ jobs:
       - name: Test packaged application on Windows
         if: runner.os == 'Windows'
         run: python tests/package_smoke.py dist/${{ matrix.executable }}
+      - name: Test packaged update helper
+        run: python tests/package_update.py dist/${{ matrix.executable }}
       - name: Build AppImage
         if: runner.os == 'Linux'
         run: python build_appimage.py --binary dist/BlogStudio-linux-x86_64 --output-dir dist
       - name: Test AppImage without FUSE
         if: runner.os == 'Linux'
         run: xvfb-run -a python tests/package_smoke.py dist/BlogStudio-x86_64.AppImage
+      - name: Test AppImage update helper without FUSE
+        if: runner.os == 'Linux'
+        run: python tests/package_update.py dist/BlogStudio-x86_64.AppImage
       - uses: actions/upload-artifact@v4
         with:
           name: BlogStudio-${{ matrix.name }}

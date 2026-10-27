@@ -106,6 +106,10 @@ def main():
             assert state['git']['available'] is False
             assert not state['drafts']
             for path in ('/', '/static/app.js', '/static/alignment.js', '/static/style.css',
+                         '/static/writing-tools.js', '/static/writing-tools.css',
+                         '/static/media-tools.js', '/static/media-tools.css',
+                         '/static/library-tools.js', '/static/library-tools.css',
+                         '/static/cloud-tools.js', '/static/cloud-tools.css',
                          '/static/vendor/toastui-editor-all.min.js',
                          '/static/vendor/katex/fonts/KaTeX_Main-Regular.woff2'):
                 assert request(url, path), path

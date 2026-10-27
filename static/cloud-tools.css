@@ -1,0 +1,17 @@
+.cloud-dialog { width:760px; max-width:calc(100vw - 24px); max-height:88vh; overflow:auto }
+.cloud-dialog details { border:1px solid var(--line); border-radius:9px; padding:14px; margin-top:14px }
+.cloud-dialog details details { background:var(--cream); margin-top:12px }
+.cloud-dialog summary { cursor:pointer; font-size:14px; font-weight:650 }
+.cloud-dialog label { display:block; font-size:12px; font-weight:600; margin:12px 0 6px }
+.cloud-dialog input,.cloud-dialog select { display:block; width:100%; margin:8px 0; padding:10px; border:1px solid var(--line); border-radius:6px; background:var(--paper); color:var(--ink) }
+.cloud-dialog button { margin-top:8px }
+.cloud-dialog a { color:var(--accent-dark); overflow-wrap:anywhere; font-size:12px }
+.cloud-code { display:block; font:700 22px monospace; letter-spacing:2px; margin:10px 0; color:var(--accent-dark) }
+.cloud-code:empty { display:none }
+.cloud-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:8px }
+.cloud-run { display:flex; align-items:center; flex-wrap:wrap; gap:10px; border-bottom:1px solid var(--line); padding:8px 0; font-size:12px }
+.cloud-run>a { flex:1 }
+#cloud-deployment-status[data-state=published] { color:var(--accent-dark) }
+#cloud-deployment-status[data-state=failed] { color:#a3433e }
+#cloud-message:empty { display:none }
+@media(max-width:600px) { .cloud-dialog { padding:20px } .cloud-dialog details { padding:10px } .cloud-open { font-size:11px } }

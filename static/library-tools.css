@@ -1,0 +1,31 @@
+.studio-utilities { display:flex; justify-content:space-between; flex-wrap:wrap; gap:8px; padding:7px 32px; border-bottom:1px solid var(--line); background:var(--paper) }
+#library-tools-root,#cloud-tools-root { display:flex; flex-wrap:wrap; gap:6px; align-items:center }
+.studio-utilities button,.library-actions button { padding:8px 11px; border:1px solid var(--line); border-radius:6px; font-size:12px; background:var(--paper); color:var(--ink) }
+.extension-tools { display:flex; flex-wrap:wrap; align-items:flex-start; gap:6px 10px; margin-bottom:10px }
+.extension-tools .studio-writing-tools { flex:1 1 450px; min-width:0; margin:0 }
+.extension-tools .writing-action-row { padding:0; gap:6px }
+.extension-tools .media-tools { flex:0 1 auto; padding:0; min-height:32px; align-items:center }
+.extension-tools .studio-writing-tools:has(.writing-panel:not([hidden])) { flex-basis:100% }
+.document-header { padding-top:30px }
+.document-eyebrow { margin-bottom:16px }
+.editor-tools { margin-top:22px; padding:12px 0 }
+.library-dialog { width:760px; max-width:calc(100vw - 24px); max-height:90vh; overflow:auto; border:1px solid var(--line); border-radius:12px; padding:24px; color:var(--ink); background:var(--paper) }
+.library-dialog::backdrop { background:#15241b66 }
+.library-dialog h2 { font-size:22px; margin:0 0 18px }
+.library-dialog label { display:block; margin:12px 0; font-size:13px }
+.library-dialog input,.library-dialog textarea,.library-dialog select { width:100%; border:1px solid var(--line); border-radius:6px; padding:10px; margin-top:6px; background:white }
+.library-dialog textarea { min-height:180px; resize:vertical }
+.library-actions { display:flex; flex-wrap:wrap; gap:8px; margin-top:16px }
+.library-row { display:flex; align-items:center; gap:8px; border-bottom:1px solid var(--line); padding:12px 0 }
+.library-row strong { flex:1; overflow-wrap:anywhere; min-width:0 }
+.library-row button { padding:6px 8px; border-radius:5px; background:var(--cream); font-size:12px }
+.library-help,.library-status { font-size:13px; line-height:1.7; white-space:pre-wrap; overflow-wrap:anywhere }
+.library-status { color:var(--accent-dark) }
+.library-diff { white-space:pre-wrap; font:13px/1.7 monospace; overflow-wrap:anywhere; max-height:60vh; overflow:auto; background:var(--cream); padding:14px; border-radius:8px }
+.library-diff .added { color:#17693c; background:#ddf5e4 }
+.library-diff .removed { color:#a13030; background:#ffe5e5 }
+.preview-dialog { width:min(1400px,96vw) }
+.preview-shell { overflow:auto; max-height:70vh; background:#e5e8e4; border-radius:8px; padding:10px }
+.preview-shell iframe { display:block; height:65vh; width:100%; max-width:100%; background:white; border:0; margin:auto }
+.focus-mode .studio-utilities { display:none }
+@media(max-width:600px) { .studio-utilities { padding:8px 14px } .library-dialog { padding:18px } .library-row { flex-wrap:wrap } .library-row strong { flex-basis:100% } }
