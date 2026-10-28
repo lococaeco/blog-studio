@@ -6,6 +6,7 @@ import re
 import unittest
 
 from playwright.sync_api import expect
+from browser_toolbar_support import tool
 import browser_smoke as smoke
 
 
@@ -29,7 +30,7 @@ class MediaTests(unittest.TestCase):
 
     def test_crop_resize_caption_survive_reload_and_edit(self):
         self.new_post('이미지 편집 검증')
-        self.page.locator('#media-add-image').click()
+        tool(self.page, '#media-add-image').click()
         self.page.locator('#media-image-file').set_input_files(self.image_file())
         expect(self.page.locator('#media-image-apply')).to_be_enabled()
         for selector, value in [('media-crop-x', '200'), ('media-crop-y', '0'),
@@ -55,8 +56,8 @@ class MediaTests(unittest.TestCase):
         self.page.reload()
         image = self.page.locator('.toastui-editor-ww-container img[src]').first
         image.click()
-        expect(self.page.locator('#media-edit-image')).to_be_enabled()
-        self.page.locator('#media-edit-image').click()
+        expect(tool(self.page, '#media-edit-image')).to_be_enabled()
+        tool(self.page, '#media-edit-image').click()
         expect(self.page.locator('#media-image-caption')).to_have_value('첫 번째 사진 설명')
         self.page.locator('#media-image-caption').fill('수정한 사진 설명')
         self.page.locator('#media-image-apply').click()
@@ -75,7 +76,7 @@ class MediaTests(unittest.TestCase):
             'url': 'https://example.invalid/paper', 'title': '읽어볼 논문',
             'description': '문맥을 설명하는 요약입니다.', 'image': self.base + '/assets/images/fixture.png',
         }))
-        self.page.locator('#media-link-card').click()
+        tool(self.page, '#media-link-card').click()
         self.page.locator('#media-link-url').fill('https://example.invalid/paper')
         self.page.locator('#media-link-fetch').click()
         expect(self.page.locator('#media-link-label')).to_have_value('읽어볼 논문')
@@ -90,7 +91,7 @@ class MediaTests(unittest.TestCase):
         card = self.page.locator('.toastui-editor-ww-container blockquote[data-studio-card=link]')
         expect(card).to_have_count(1)
         expect(card).to_contain_text('읽어볼 논문')
-        self.page.locator('#media-link-card').click()
+        tool(self.page, '#media-link-card').click()
         self.page.locator('#media-internal-search').fill('기존 Markdown')
         self.page.locator('.media-internal-post').filter(has_text='기존 Markdown 예제').click()
         expect(self.page.locator('#media-link-url')).to_have_value(re.compile(r'^https?://'))
@@ -98,8 +99,8 @@ class MediaTests(unittest.TestCase):
         expect(self.page.locator('#media-link-dialog')).not_to_be_visible()
         self.assertIn('기존 Markdown 예제', self.saved()['body'])
         self.page.locator('#mode-markdown').click()
-        expect(self.page.locator('#media-add-image')).to_be_disabled()
-        expect(self.page.locator('#media-link-card')).to_be_disabled()
+        expect(tool(self.page, '#media-add-image')).to_be_disabled()
+        expect(tool(self.page, '#media-link-card')).to_be_disabled()
 
     def test_automatic_optimization_keeps_animation_and_small_images(self):
         self.new_post('자동 최적화 검증')

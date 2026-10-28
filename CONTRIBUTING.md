@@ -10,7 +10,7 @@ Blog Studio의 기능 변경은 이 저장소에서 관리합니다. 블로그 �
    fixture 원본을 직접 편집 대상으로 열지 마세요.
 3. 변경한 동작에 맞는 검사부터 실행합니다.
    - 저장·Git·런처: `python -m unittest discover -s tests -p 'test_*.py'`
-   - UI: `python tests/browser_smoke.py`와 실제 화면 확인
+   - UI: `python -m unittest discover -s tests -p 'browser_*.py'`와 실제 화면 확인
    - 패키징: `python build_desktop.py`, 이어서 `tests/package_smoke.py`
 4. PR에 사용자에게 달라지는 동작과 실행한 검사를 적습니다.
 5. GitHub Actions 결과를 확인하고 병합합니다.
@@ -36,6 +36,14 @@ Blog Studio의 기능 변경은 이 저장소에서 관리합니다. 블로그 �
 `static/alignment.js`는 TOAST UI Editor 3.2.2의 문단 속성·HTML 변환·실행 취소 동작에
 맞춘 확장입니다. 편집기 버전을 변경할 때는 정렬한 문단의 굵게/링크 보존,
 Markdown 왕복 변환, 제목의 목차 주소, 실행 취소와 코드 블록 선택을 다시 검사하세요.
+
+새 편집 기능은 `static/toolbar.js`의 서식·삽입·편집·문서 그룹 중 알맞은 메뉴에
+추가합니다. `group`·`command`·`move` 도우미와 `static/toolbar.css`의 공통 버튼·패널
+규칙을 사용해 도구 줄이 계속 늘어나지 않도록 합니다. 편집 메뉴는 `#document` 안에
+두어 발행 중 편집 잠금이 적용되게 하며, 본문 선택을 보존해야 합니다. 제목 변경과
+정렬 변경의 적용 범위는 서로 다릅니다. 정렬은 선택이 없으면 전체 문단에 적용하고,
+제목은 현재 문단에 적용합니다. 새 버튼은 실제 클릭·키보드 조작, 긴 글의 스크롤,
+작은 화면의 메뉴 위치를 브라우저 검사로 확인하세요.
 
 Windows 실행 파일은 Windows에서, Linux 실행 파일은 지원하는 가장 오래된
 Ubuntu 환경에서 빌드합니다. 각각 실제 실행 파일 검사가 통과한 결과물을 사용합니다.

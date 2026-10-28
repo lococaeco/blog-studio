@@ -63,6 +63,8 @@
     state.busy = value;
     // Keep a document immutable while an awaited transition is taking its snapshot.
     $('document').inert = value;
+    $('workspace-menu-root').inert = value;
+    if (value) window.StudioToolbar?.closeMenus();
     $('metadata-panel').inert = value;
     $('document').setAttribute('aria-busy', String(value));
   }
@@ -384,9 +386,9 @@
     state.editor = new toastui.Editor({
       el: $('editor'), height: 'auto', minHeight: '430px', initialEditType: 'wysiwyg', previewStyle: $('editor').clientWidth < 800 ? 'tab' : 'vertical', hideModeSwitch: true, usageStatistics: false, language: 'ko-KR', placeholder: '여기에 첫 문장을 적어보세요. 이미지를 붙여넣을 수도 있어요.', autofocus: false,
       linkAttributes: { target: '_blank', rel: 'noopener noreferrer' },
-      plugins: [window.StudioAlignment.plugin, window.StudioWriting?.plugin, window.StudioMedia?.plugin].filter(Boolean),
+      plugins: [window.StudioAlignment.plugin, window.StudioToolbar?.plugin, window.StudioWriting?.plugin, window.StudioMedia?.plugin].filter(Boolean),
       customHTMLSanitizer: html => window.DOMPurify ? window.DOMPurify.sanitize(html, { USE_PROFILES: { html: true } }) : '',
-      toolbarItems: [['heading', 'bold', 'italic', 'strike'], ['hr', 'quote'], ['ul', 'ol', 'task'], ['table', 'link', 'image'], ['code', 'codeblock']],
+      toolbarItems: [],
       hooks: { addImageBlobHook: (blob, callback) => {
         // Insert the repository URL when the asynchronous upload completes.
         uploadImage(blob)
@@ -411,6 +413,16 @@
     window.StudioWriting?.install({ editor: state.editor, host: $('writing-tools-root'), notify });
     window.StudioMedia?.install({ editor: state.editor, host: $('media-tools-root'), api, notify,
       getDraft: () => state.draft, upload: uploadImage, imageURL, getBootstrap: () => state.bootstrap, changed });
+    window.StudioToolbar?.install({ editor: state.editor, notify });
+    // TOAST's Markdown clipboard textarea captures the model selection on
+    // Ctrl/⌘+V. A native caret move (e.g. Ctrl+End) may not have reached that
+    // model yet, so synchronize it before the clipboard handler takes focus.
+    $('editor').addEventListener('keydown', event => {
+      if ((!event.altKey && (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v') || (event.shiftKey && event.key === 'Insert')) {
+        window.StudioAlignment.flushPendingChanges(state.editor);
+      }
+    }, true);
+    $('editor').addEventListener('paste', () => window.StudioAlignment.flushPendingChanges(state.editor), true);
     updateAlignment();
   }
 
@@ -848,6 +860,7 @@
   }
 
   function wireEvents() {
+    window.addEventListener('resize', () => { if (!$('document').hidden) resizeTextareas(); });
     for (const id of fieldIds) $(id).addEventListener(['category', ...flags].includes(id) ? 'change' : 'input', changed);
     $('mathjax').addEventListener('change', queueRenderImages);
     $('new-post').onclick = act(() => newDraft());
@@ -866,7 +879,7 @@
     $('metadata-close').onclick = () => { state.settings = false; updateSettings(); };
     $('metadata-panel').addEventListener('close', () => { state.settings = false; $('metadata-button').setAttribute('aria-expanded', 'false'); });
     $('metadata-panel').addEventListener('click', event => { if (event.target === $('metadata-panel')) { const rect = event.target.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) { state.settings = false; updateSettings(); } } });
-    $('focus-button').onclick = () => { state.focus = !state.focus; $('app').classList.toggle('focus-mode', state.focus); $('focus-button').setAttribute('aria-pressed', String(state.focus)); };
+    $('focus-button').onclick = () => { state.focus = !state.focus; $('app').classList.toggle('focus-mode', state.focus); $('focus-button').setAttribute('aria-pressed', String(state.focus)); if (!$('document').hidden) resizeTextareas(); };
     $('mode-visual').onclick = act(() => changeMode('wysiwyg'));
     $('mode-markdown').onclick = act(() => changeMode('markdown'));
     for (const id of ['mode-visual', 'mode-markdown']) {
@@ -933,7 +946,7 @@
           else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
         }
       }
-      const editing = event.target.closest('input,textarea,select,[contenteditable="true"]');
+      const editing = event.target.closest('input,textarea,select,[contenteditable="true"],[data-studio-menu],[data-toolbar-toggle]');
       if (!editing && !modifier && !event.altKey) {
         if (event.key === '/') { event.preventDefault(); if (compactSidebar.matches) openSidebar(); $('search').focus(); }
         if (event.key.toLowerCase() === 'n') { event.preventDefault(); newDraft().catch(error => notify(error.message, true)); }
@@ -955,6 +968,7 @@
         getEditor: () => state.editor, getBootstrap: () => state.bootstrap, refresh: refreshBootstrap,
         newDraft, loadDraft, currentBody, confirm, setBusy });
       window.StudioCloud?.install({ host: $('cloud-tools-root'), api, notify, saveDraft: saveBeforeTransfer, getDraft: () => state.draft });
+      window.StudioToolbar?.installWorkspace();
       $('new-post').disabled = false; $('welcome-new').disabled = false;
       let last;
       try { last = localStorage.getItem(storageKey('last-draft')); } catch (_) { /* Optional convenience. */ }

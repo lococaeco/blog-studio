@@ -7,6 +7,7 @@ from unittest.mock import patch
 from urllib.parse import urlsplit
 
 from playwright.sync_api import expect
+from browser_toolbar_support import tool
 import yaml
 
 import browser_smoke as base
@@ -45,7 +46,7 @@ class ThemeBrowserTests(unittest.TestCase):
 
         with patch('theme_preview.shutil.which', return_value='/fixture/jekyll'), \
                 patch('theme_preview.run_external', side_effect=compile_fixture):
-            self.page.locator('#theme-preview').click()
+            tool(self.page, '#theme-preview').click()
             dialog = self.page.get_by_role('dialog', name='실제 블로그 미리보기', exact=True)
             self.page.locator('#theme-preview-build').click()
             iframe = dialog.locator('iframe')

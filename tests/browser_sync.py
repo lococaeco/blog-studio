@@ -4,6 +4,7 @@ from __future__ import annotations
 import unittest
 
 from playwright.sync_api import expect
+from browser_toolbar_support import tool
 import browser_smoke as smoke
 
 
@@ -48,7 +49,7 @@ class SyncBrowserTests(unittest.TestCase):
         self.page.route('**/api/sync', start)
         self.page.route('**/api/jobs?id=mock-sync-job', poll)
         self.page.locator('#title').fill('동기화 직전에 수정한 제목')
-        self.page.locator('#backup-sync').click()
+        tool(self.page, '#backup-sync').click()
         dialog = self.page.get_by_role('dialog', name='백업과 초안 동기화', exact=True)
         expect(dialog).to_be_visible()
         self.page.locator('#draft-sync').click()

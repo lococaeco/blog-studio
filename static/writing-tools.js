@@ -343,7 +343,7 @@
       <div class="writing-panel-heading"><strong>문서 목차</strong><label class="writing-checkbox"><input id="outline-all-blocks" type="checkbox">모든 문단 보기</label><button type="button" data-writing-close="outline" aria-label="목차 닫기">×</button></div>
       <p id="outline-help" class="writing-help">제목을 누르면 해당 위치로 이동합니다.</p><ol id="writing-outline-list" class="writing-outline-list"></ol>
     </section>`;
-    const $ = id => host.querySelector('#' + id);
+    const $ = id => document.getElementById(id);
     const safe = action => event => { try { action(event); } catch (error) { notify(error.message, true); } };
     const richControls = ['writing-color', 'writing-highlight', 'writing-underline', 'writing-clear-style'];
     for (const id of ['writing-underline', 'writing-clear-style']) $(id).addEventListener('mousedown', event => event.preventDefault());
@@ -360,6 +360,8 @@
     const toggle = name => {
       const panel = $('writing-' + name + '-panel');
       if (!panel.hidden) { close(name); return; }
+      // Keep the sticky dock compact: finding and outlining share one panel slot.
+      close(name === 'find' ? 'outline' : 'find');
       panel.hidden = false;
       $('writing-' + name).setAttribute('aria-expanded', 'true');
       if (name === 'find') { session.searchOpen = true; setQuery(session, $('find-query').value, $('find-case').checked); $('find-query').focus(); }
@@ -367,7 +369,11 @@
     };
     $('writing-find').onclick = () => toggle('find');
     $('writing-outline').onclick = () => toggle('outline');
-    for (const button of host.querySelectorAll('[data-writing-close]')) button.onclick = () => { const name = button.dataset.writingClose; close(name); $('writing-' + name).focus(); };
+    for (const button of host.querySelectorAll('[data-writing-close]')) button.onclick = () => {
+      const name = button.dataset.writingClose; close(name);
+      const trigger = $('writing-' + name);
+      (trigger.getClientRects().length ? trigger : $('edit-menu-toggle')).focus({ preventScroll: true });
+    };
     for (const id of ['find-query', 'find-case']) $(id).addEventListener('input', () => setQuery(session, $('find-query').value, $('find-case').checked));
     $('find-query').addEventListener('keydown', safe(event => { if (event.key === 'Enter') { event.preventDefault(); findNext(session, event.shiftKey); } }));
     $('find-prev').onclick = safe(() => findNext(session, true));
@@ -433,10 +439,11 @@
     editor.on('changeMode', () => { outlineDoc = null; queue(session); });
     document.addEventListener('selectionchange', () => queue(session));
     document.addEventListener('keydown', event => {
-      if (host.closest('[hidden]') || document.querySelector('dialog[open]')) return;
-      if ((event.ctrlKey || event.metaKey) && !event.altKey && ['f', 'h'].includes(event.key.toLowerCase())) {
-        event.preventDefault(); if ($('writing-find-panel').hidden) toggle('find'); else $('find-query').focus();
-      } else if (event.key === 'Escape' && host.contains(document.activeElement)) {
+      if (document.getElementById('document').hidden || document.getElementById('document').inert || document.querySelector('dialog[open]')) return;
+      if ((event.ctrlKey || event.metaKey) && !event.altKey && !event.shiftKey && ['f', 'h'].includes(event.key.toLowerCase())) {
+        event.preventDefault(); window.StudioToolbar?.closeMenus();
+        if ($('writing-find-panel').hidden) toggle('find'); else $('find-query').focus();
+      } else if (event.key === 'Escape' && (host.contains(document.activeElement) || document.activeElement.closest('.writing-panel'))) {
         if (!$('writing-find-panel').hidden) close('find');
         if (!$('writing-outline-panel').hidden) close('outline');
       }

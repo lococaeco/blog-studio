@@ -20,6 +20,7 @@ import time
 import unittest
 
 from playwright.sync_api import sync_playwright, expect
+from browser_toolbar_support import tool
 
 APP = Path(__file__).resolve().parents[1]
 FIXTURE_BLOG = Path(__file__).resolve().parent / 'fixtures' / 'blog'
@@ -264,7 +265,7 @@ class BrowserTests(unittest.TestCase):
         expect(self.paragraph(first).locator('strong')).to_have_text('굵은 글씨')
         self.assertEqual(self.active()['body'], right['body'])
         with self.page.expect_download() as download:
-            self.page.locator('#export-button').click()
+            tool(self.page, '#export-button').click()
         exported = Path(download.value.path()).read_text('utf-8')
         self.assertEqual(server.split_post(exported)[2], right['body'])
         self.page.locator('#publish-button').click()
@@ -317,8 +318,10 @@ class BrowserTests(unittest.TestCase):
         code = self.page.locator('.toastui-editor-ww-container pre').filter(has_text='keep code').first
         code.click()
         for direction in ('left', 'center', 'right'):
-            expect(self.page.locator('#align-' + direction)).to_be_disabled()
-        self.assertEqual(self.saved()['body'], reset['body'])
+            expect(self.page.locator('#align-' + direction)).to_be_enabled()
+        self.page.locator('#align-center').click()
+        for text in (first, second, untouched):
+            expect(self.paragraph(text)).to_have_css('text-align', 'center')
         expect(code).to_contain_text('print("keep code")')
 
     def test_alignment_heading_and_unsupported_list_keep_blocks_separate(self):
@@ -327,7 +330,12 @@ class BrowserTests(unittest.TestCase):
                              '## ' + heading + '\n\n- **굵은 목록** 항목\n\n' + following + '\n\n## ' + heading)
         titles = self.page.locator('.toastui-editor-ww-container h2').filter(has_text=heading)
         title = titles.first
-        title.click()
+        title.evaluate("""node => {
+            node.closest('[contenteditable=true]').focus();
+            const range = document.createRange(); range.selectNodeContents(node);
+            const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
+            document.dispatchEvent(new Event('selectionchange'));
+        }""")
         self.page.locator('#align-right').click()
         expect(title).to_have_css('text-align', 'right')
         heading_aligned = self.saved()
@@ -340,7 +348,8 @@ class BrowserTests(unittest.TestCase):
             expect(self.page.locator('#align-' + direction)).to_be_disabled()
         self.assertEqual(self.saved()['body'], heading_aligned['body'])
         self.select_paragraphs(item, following)
-        expect(self.page.locator('#align-center')).to_be_disabled()
+        expect(self.page.locator('#align-center')).to_be_enabled()
+        self.page.locator('#align-center').click()
         self.page.locator('#mode-markdown').click()
         self.page.locator('#mode-visual').click()
         expect(titles.first).to_have_css('text-align', 'right')
@@ -349,13 +358,18 @@ class BrowserTests(unittest.TestCase):
         expect(self.paragraph(item).locator('strong')).to_have_text('굵은 목록')
         self.assertTrue(self.paragraph(item).evaluate('(node) => !!node.closest("li")'))
         self.assertFalse(self.paragraph(following).evaluate('(node) => !!node.closest("li, h2")'))
-        self.assertNotEqual(self.paragraph(following).evaluate('(node) => getComputedStyle(node).textAlign'), 'center')
+        expect(self.paragraph(following)).to_have_css('text-align', 'center')
 
     def test_alignment_preserves_mixed_html_heading_anchors_after_later_edit(self):
         self.visual_markdown('HTML 제목과 기존 목차 주소 검증', '<h2>Same</h2>\n\n## Same\n\n## Same')
         titles = self.page.locator('.toastui-editor-ww-container h2').filter(has_text='Same')
         expect(titles).to_have_count(3)
-        titles.first.click()
+        titles.first.evaluate("""node => {
+            node.closest('[contenteditable=true]').focus();
+            const range = document.createRange(); range.selectNodeContents(node);
+            const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
+            document.dispatchEvent(new Event('selectionchange'));
+        }""")
         self.page.locator('#align-center').click()
         raw_aligned = self.saved()
         self.assertEqual(raw_aligned['body'].count('## Same'), 2,
@@ -363,7 +377,12 @@ class BrowserTests(unittest.TestCase):
         html_identifier = titles.first.get_attribute('id')
         self.assertTrue(html_identifier)
         self.assertNotIn(html_identifier, ('same', 'same-1'))
-        titles.nth(1).click()
+        titles.nth(1).evaluate("""node => {
+            node.closest('[contenteditable=true]').focus();
+            const range = document.createRange(); range.selectNodeContents(node);
+            const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
+            document.dispatchEvent(new Event('selectionchange'));
+        }""")
         self.page.locator('#align-right').click()
         self.saved()
         self.assertEqual(titles.evaluate_all('(nodes) => nodes.map(node => node.id)'),
@@ -377,6 +396,7 @@ class BrowserTests(unittest.TestCase):
         # A real paste followed immediately by a mode switch must retain the
         # new heading, without waiting for autosave or a rendering delay.
         self.page.locator('#mode-visual').click()
+        expect(titles).to_have_count(4)
         appended = self.saved()
         self.assertIn('id="same-2"', appended['body'], 'A later duplicate must not reuse an existing blog anchor')
         self.page.reload()
@@ -390,7 +410,12 @@ class BrowserTests(unittest.TestCase):
         # the anchor selected for a heading with that common English title.
         self.visual_markdown('예약 이름을 사용하는 제목 검증', '## Title\n\n제목 아래의 일반 문단.')
         reserved_title = self.page.locator('.toastui-editor-ww-container h2').filter(has_text='Title')
-        reserved_title.click()
+        reserved_title.evaluate("""node => {
+            node.closest('[contenteditable=true]').focus();
+            const range = document.createRange(); range.selectNodeContents(node);
+            const selection = getSelection(); selection.removeAllRanges(); selection.addRange(range);
+            document.dispatchEvent(new Event('selectionchange'));
+        }""")
         self.page.locator('#align-center').click()
         reserved = self.saved()
         identifier = reserved_title.get_attribute('id')
@@ -409,7 +434,7 @@ class BrowserTests(unittest.TestCase):
         self.page.locator('.toastui-editor-ww-container [contenteditable=true]').fill('서버에 아직 저장되지 않은 마지막 문장')
         expect(self.page.locator('#save-status')).to_contain_text('저장 실패', timeout=10000)
         with self.page.expect_download() as download:
-            self.page.locator('#export-button').click()
+            tool(self.page, '#export-button').click()
         self.assertIn('서버에 아직 저장되지 않은 마지막 문장', Path(download.value.path()).read_text('utf-8'))
         self.page.unroute('**/api/drafts')
         self.page.unroute('**/api/export?*')
@@ -587,7 +612,7 @@ class BrowserTests(unittest.TestCase):
         expect(other.locator('#save-status')).to_contain_text('저장 충돌', timeout=10000)
         self.assertEqual(self.http.studio.get_draft(draft['id'])['title'], '첫 탭에서 저장한 최신 제목')
         with other.expect_download() as download:
-            other.locator('#export-button').click()
+            tool(other, '#export-button').click()
         self.assertIn('충돌한 두 번째 탭 내용', Path(download.value.path()).read_text('utf-8'))
         other.close()
 

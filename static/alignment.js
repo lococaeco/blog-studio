@@ -32,7 +32,9 @@
           const original = rule.getAttrs ? rule.getAttrs(dom) : rule.attrs;
           if (original === false) return false;
           const direction = alignmentFromStyle(dom.getAttribute('style'));
-          const id = name === 'heading' ? (dom.getAttribute('data-studio-heading-id') || dom.getAttribute('id')) : null;
+          // A heading can become ordinary prose without invalidating links to
+          // its existing anchor. Keep the same sanitized ID on both blocks.
+          const id = dom.getAttribute('data-studio-heading-id') || dom.getAttribute('id');
           return direction || id ? {
             ...original,
             htmlAttrs: { ...original?.htmlAttrs, ...(direction && { style: `text-align: ${direction};` }), ...(id && headingIdAttrs(id)) },
@@ -88,21 +90,22 @@
     // The raw-block writer already closes an HTML paragraph with a blank line.
     // Consume the editor's following separator paragraph without adding another
     // blank line that its Markdown importer would remove on the next round trip.
-    if (node.type.name === 'paragraph' && !node.content.size && !nodeAlignment(node) &&
-        previous?.type.name === 'paragraph' && (nodeAlignment(previous) || hasCaption(previous))) {
+    if (node.type.name === 'paragraph' && !node.content.size && !nodeAlignment(node) && !node.attrs.htmlAttrs?.id &&
+        previous?.type.name === 'paragraph' && (nodeAlignment(previous) || previous.attrs.htmlAttrs?.id || hasCaption(previous))) {
       return { rawHTML: ['', ''] };
     }
     const id = node.type.name === 'heading' && doc ? headingCollisionIds(doc).get(node) : null;
     if (id) node = node.type.create({ ...node.attrs, htmlAttrs: { ...node.attrs.htmlAttrs, ...headingIdAttrs(id) } }, node.content, node.marks);
     const captionImage = hasCaption(node);
-    if (!nodeAlignment(node) && !captionImage && !(node.type.name === 'heading' && node.attrs.htmlAttrs?.id)) {
+    const rawHeading = node.type.name === 'heading' && node.attrs.rawHTML;
+    if (!nodeAlignment(node) && !captionImage && !node.attrs.htmlAttrs?.id && !rawHeading) {
       return context.origin ? context.origin() : {};
     }
     const container = document.createElement('div');
     container.append(serializeNode(node));
     for (const element of container.querySelectorAll('[data-raw-html]')) element.removeAttribute('data-raw-html');
     let html = window.DOMPurify.sanitize(container.innerHTML, { USE_PROFILES: { html: true } });
-    const publicId = node.type.name === 'heading' && publicHeadingId(node);
+    const publicId = publicHeadingId(node);
     if (publicId && node.attrs.htmlAttrs?.['data-studio-heading-id']) {
       // Restore only the escaped public anchor in the saved string. The live
       // editor/preview still passes through DOMPurify and uses the safe ID.
@@ -115,7 +118,7 @@
     // and an empty *conversion-local copy*, leaving the editor document intact.
     nodeInfo.node = node.copy();
     const previousHtmlHeading = previous?.type.name === 'heading' &&
-      (nodeAlignment(previous) || previous.attrs.htmlAttrs?.id || (doc && headingCollisionIds(doc).has(previous)));
+      (previous.attrs.rawHTML || nodeAlignment(previous) || previous.attrs.htmlAttrs?.id || (doc && headingCollisionIds(doc).has(previous)));
     // The pinned writer turns on stopNewline before writing a raw paragraph.
     // That suppresses the preceding Markdown block's pending closeBlock(),
     // yielding e.g. "## Heading<p>..." unless we provide its separator here.
@@ -128,39 +131,77 @@
   function selectedBlocks(editor) {
     const session = sessions.get(editor);
     if (!session?.view || !editor.isWysiwygMode()) {
-      return { enabled: false, value: null, reason: '시각 편집에서 문단 정렬을 사용할 수 있어요.', blocks: [] };
+      return { enabled: false, value: null, scope: null, reason: '시각 편집에서 정렬을 사용할 수 있어요.', blocks: [] };
     }
-    const { state } = session.view;
-    // Code blocks use a nested editor whose selection can leave the outer
-    // ProseMirror paragraph selection unchanged. Respect the actual DOM focus.
-    const domSelection = window.getSelection();
-    for (const endpoint of [domSelection?.anchorNode, domSelection?.focusNode]) {
-      const element = endpoint?.nodeType === Node.ELEMENT_NODE ? endpoint : endpoint?.parentElement;
-      if (element && session.view.dom.contains(element) && element.closest('pre, table, blockquote, ul, ol')) {
-        return { enabled: false, value: null, reason: '일반 문단이나 제목에서 정렬을 사용할 수 있어요.', blocks: [] };
-      }
-    }
-    const { from, to } = state.selection;
+    const { state, dom } = session.view;
+    const browserSelection = window.getSelection();
+    const inEditor = browserSelection?.anchorNode && browserSelection?.focusNode &&
+      dom.contains(browserSelection.anchorNode) && dom.contains(browserSelection.focusNode);
+    const active = document.activeElement;
+    const outsideField = active?.matches('input, textarea, [contenteditable="true"]') && !dom.contains(active);
+    const hasRange = !outsideField && inEditor && !browserSelection.isCollapsed && !state.selection.empty;
+    const scope = hasRange ? 'selection' : 'document';
     const blocks = [];
-    let unsupported = false;
-    state.doc.nodesBetween(from, to, (node, position, parent) => {
-      if (node.isTextblock) {
-        if (!blockTypes.has(node.type.name) || parent.type.name !== 'doc') unsupported = true;
-        else blocks.push({ node, position });
-        return false;
-      }
-      if (node.isLeaf && !node.isText) unsupported = true;
-      return true;
+    // A caret or focus outside the editor means whole-document alignment.
+    // Code, lists and tables keep their structure; only root prose blocks are
+    // candidates. A dragged range includes only the prose blocks it touches.
+    state.doc.forEach((node, position) => {
+      if (!blockTypes.has(node.type.name)) return;
+      if (hasRange && (position >= state.selection.to || position + node.nodeSize <= state.selection.from)) return;
+      blocks.push({ node, position });
     });
-    if (!blocks.length || unsupported) {
-      return { enabled: false, value: null, reason: '일반 문단이나 제목에 커서를 놓거나 선택해 주세요. 목록·표·인용문·코드 블록은 지원하지 않아요.', blocks: [] };
+    if (!blocks.length) {
+      return { enabled: false, value: null, scope, reason: '선택한 범위에 정렬할 일반 문단이나 제목이 없어요.', blocks: [] };
     }
     const values = new Set(blocks.map(({ node }) => nodeAlignment(node) || 'left'));
-    return { enabled: true, value: values.size === 1 ? [...values][0] : null, blocks };
+    return { enabled: true, value: values.size === 1 ? [...values][0] : null, scope, blocks };
+  }
+
+  function rememberParagraphBreak(session, event) {
+    const view = session.view;
+    if (!view || event.isComposing || view.composing || event.keyCode === 229) return;
+    const paragraphBreak = event.type === 'keydown'
+      ? event.key === 'Enter' && !event.ctrlKey && !event.metaKey && !event.altKey
+      : event.inputType === 'insertParagraph';
+    if (!paragraphBreak) return;
+    const { selection } = view.state;
+    if (selection.$from.depth !== 1 || !blockTypes.has(selection.$from.parent.type.name)) return;
+    const direction = nodeAlignment(selection.$from.parent);
+    if (!direction) return;
+    // Start a fresh native history group before the split. The inherited
+    // attributes are appended to that split, so a single undo removes the new
+    // paragraph instead of undoing the entire document loaded moments earlier.
+    view.dispatch(view.state.tr.setMeta('closeHistory$', true));
+    session.paragraphBreak = { direction, position: selection.$from.before(1),
+      document: view.state.doc, at: performance.now() };
+  }
+
+  function inheritParagraphAlignment(session, transactions, oldState, state) {
+    const pending = session.paragraphBreak;
+    if (!pending || !transactions.some(transaction => transaction.docChanged)) return null;
+    session.paragraphBreak = null;
+    const { $from } = state.selection;
+    if (performance.now() - pending.at > 1000 || oldState.doc !== pending.document ||
+        $from.depth !== 1 || !blockTypes.has($from.parent.type.name)) return null;
+    const position = $from.before(1);
+    // A split can create a following block or convert an empty heading into a
+    // paragraph. Do not carry formatting into unrelated commands/navigation.
+    if (position < pending.position) return null;
+    const node = $from.parent;
+    const htmlAttrs = { ...node.attrs.htmlAttrs };
+    if (position > pending.position || node.type.name === 'paragraph') {
+      delete htmlAttrs.id;
+      delete htmlAttrs['data-studio-heading-id'];
+    }
+    htmlAttrs.style = `text-align: ${pending.direction};`;
+    if (JSON.stringify(htmlAttrs) === JSON.stringify(node.attrs.htmlAttrs || {})) return null;
+    const transaction = state.tr.setNodeMarkup(position, null, { ...node.attrs, htmlAttrs }, node.marks);
+    if (state.storedMarks) transaction.setStoredMarks(state.storedMarks);
+    return transaction;
   }
 
   function plugin(context) {
-    const session = { view: null, markdownView: null };
+    const session = { view: null, markdownView: null, paragraphBreak: null };
     sessions.set(context.instance, session);
     return {
       toMarkdownRenderers: {
@@ -175,17 +216,25 @@
       })],
       wysiwygPlugins: [() => new context.pmState.Plugin({
         state: { init: (_, state) => preserveAlignmentOnImport(state.schema), apply: (_, value) => value },
+        appendTransaction: (transactions, oldState, state) => inheritParagraphAlignment(session, transactions, oldState, state),
         view(view) {
           session.view = view;
-          return { destroy() { session.view = null; } };
+          const remember = event => rememberParagraphBreak(session, event);
+          view.dom.addEventListener('keydown', remember, true);
+          view.dom.addEventListener('beforeinput', remember, true);
+          return { destroy() {
+            view.dom.removeEventListener('keydown', remember, true);
+            view.dom.removeEventListener('beforeinput', remember, true);
+            session.view = null;
+          } };
         },
       })],
     };
   }
 
   function selection(editor) {
-    const { enabled, value, reason } = selectedBlocks(editor);
-    return { enabled, value, reason };
+    const { enabled, value, reason, scope } = selectedBlocks(editor);
+    return { enabled, value, reason, scope };
   }
 
   function headingSlug(text) {
@@ -222,9 +271,9 @@
     const counts = new Map();
     const affected = new Set();
     doc.descendants(node => {
+      if (blockTypes.has(node.type.name) && publicHeadingId(node)) used.add(publicHeadingId(node));
       if (node.type.name !== 'heading') return;
-      if (publicHeadingId(node)) used.add(publicHeadingId(node));
-      else if (!node.attrs.rawHTML) {
+      if (!publicHeadingId(node) && !node.attrs.rawHTML) {
         const base = headingSlug(node.textContent);
         const suffix = counts.get(base) || 0;
         counts.set(base, suffix + 1);
@@ -265,9 +314,9 @@
     const used = new Set();
     const headings = [];
     doc.descendants((node, position) => {
+      if (blockTypes.has(node.type.name) && publicHeadingId(node)) used.add(publicHeadingId(node));
       if (node.type.name !== 'heading') return;
       headings.push({ node, position });
-      if (publicHeadingId(node)) used.add(publicHeadingId(node));
     });
     for (const { node, position } of selected) {
       if (node.type.name !== 'heading' || !node.attrs.rawHTML || node.attrs.htmlAttrs?.id
@@ -303,6 +352,7 @@
 
   function apply(editor, direction) {
     if (!directions.has(direction)) return false;
+    sessions.get(editor)?.view?.domObserver.flush();
     const selected = selectedBlocks(editor);
     if (!selected.enabled) return false;
     const { view } = sessions.get(editor);

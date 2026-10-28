@@ -5,6 +5,7 @@ import unittest
 import zipfile
 
 from playwright.sync_api import expect
+from browser_toolbar_support import tool
 import browser_smoke as base
 import browser_writing as writing
 
@@ -21,7 +22,7 @@ class LibraryTests(unittest.TestCase):
     content = writing.WritingTests.content
 
     def personal(self):
-        self.page.locator('#personal-templates').click()
+        tool(self.page, '#personal-templates').click()
         return self.page.get_by_role('dialog', name='내 템플릿과 재사용 문구', exact=True)
 
     def test_personal_template_crud_and_rich_selected_snippet(self):
@@ -74,7 +75,7 @@ class LibraryTests(unittest.TestCase):
         self.page.locator('#excerpt').fill('비교할 요약 변경')
         self.page.locator('.toastui-editor-ww-container [contenteditable=true]').fill('변경된 본문 내용입니다.')
         after = self.saved()
-        self.page.locator('#history-button').click()
+        tool(self.page, '#history-button').click()
         versions = self.http.studio.history(before['id'])['items']
         index = next(index for index, item in enumerate(versions) if item['version'] == before['version'])
         row = self.page.locator('#history-list .history-item').nth(index)
@@ -96,7 +97,7 @@ class LibraryTests(unittest.TestCase):
 
     def test_backup_download_and_conflict_import_keep_both_drafts_and_history(self):
         before = self.content('백업에 보관할 **원래 본문**입니다.')
-        self.page.locator('#backup-sync').click()
+        tool(self.page, '#backup-sync').click()
         dialog = self.page.get_by_role('dialog', name='백업과 초안 동기화', exact=True)
         with self.page.expect_download() as download:
             self.page.locator('#backup-download').click()
@@ -110,7 +111,7 @@ class LibraryTests(unittest.TestCase):
         dialog.get_by_role('button', name='닫기', exact=True).click()
         self.page.locator('.toastui-editor-ww-container [contenteditable=true]').fill('이 컴퓨터에서 변경한 본문입니다.')
         current = self.saved()
-        self.page.locator('#backup-sync').click()
+        tool(self.page, '#backup-sync').click()
         dialog = self.page.get_by_role('dialog', name='백업과 초안 동기화', exact=True)
         dialog.locator('input[type=file]').set_input_files({'name': 'blog-studio-backup.zip', 'mimeType': 'application/zip', 'buffer': path.read_bytes()})
         self.page.locator('#confirm-accept').click()

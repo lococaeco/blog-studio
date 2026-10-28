@@ -4,6 +4,7 @@ from __future__ import annotations
 import unittest
 
 from playwright.sync_api import expect
+from browser_toolbar_support import tool
 import browser_smoke as smoke
 
 
@@ -23,7 +24,7 @@ class CloudBrowserTests(unittest.TestCase):
 
     def open(self):
         self.connection()
-        self.page.locator('#cloud-open').click()
+        tool(self.page, '#cloud-open').click()
         expect(self.page.locator('#cloud-dialog')).to_be_visible()
         expect(self.page.locator('#cloud-browser-login')).to_be_disabled()
 
@@ -76,7 +77,7 @@ class CloudBrowserTests(unittest.TestCase):
         self.page.locator('#cloud-close').click()
         self.page.route('**/api/drafts', lambda route: (requests.append('save'), route.continue_()))
         self.page.locator('#title').fill('종료 전에 저장한 제목')
-        self.page.locator('#cloud-open').click()
+        tool(self.page, '#cloud-open').click()
         self.page.once('dialog', lambda dialog: dialog.accept())
         self.page.locator('#cloud-apply-update').click()
         expect(self.page.locator('#cloud-update-status')).to_have_text('종료 후 재시작')

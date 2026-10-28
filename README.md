@@ -5,6 +5,7 @@
 Jekyll 블로그를 위한 로컬 글쓰기 프로그램입니다. 시각 편집과 Markdown, 문단 정렬,
 이미지 편집, 자동 저장, 변경 비교, GitHub 전송과 게시 확인을 지원합니다.
 사용자 템플릿, 백업·초안 동기화, 실제 테마 미리보기와 앱 업데이트도 제공합니다.
+편집 도구는 기능별 메뉴로 정리되어 있으며, 긴 글을 내려 읽어도 화면 위에서 바로 사용할 수 있습니다.
 
 [![Windows 다운로드](https://img.shields.io/badge/Windows-EXE_다운로드-167D8D?style=for-the-badge)](https://github.com/lococaeco/blog-studio/releases/latest/download/BlogStudio.exe)
 [![Ubuntu 다운로드](https://img.shields.io/badge/Ubuntu-AppImage_다운로드-E95420?style=for-the-badge)](https://github.com/lococaeco/blog-studio/releases/latest/download/BlogStudio-x86_64.AppImage)

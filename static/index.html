@@ -13,6 +13,7 @@
   <link rel="stylesheet" href="/static/media-tools.css">
   <link rel="stylesheet" href="/static/library-tools.css">
   <link rel="stylesheet" href="/static/cloud-tools.css">
+  <link rel="stylesheet" href="/static/toolbar.css">
   <script defer src="/static/vendor/purify.min.js"></script>
   <script defer src="/static/vendor/toastui-editor-all.min.js"></script>
   <script defer src="/static/vendor/ko-kr.js"></script>
@@ -23,6 +24,7 @@
   <script defer src="/static/media-tools.js"></script>
   <script defer src="/static/library-tools.js"></script>
   <script defer src="/static/cloud-tools.js"></script>
+  <script defer src="/static/toolbar.js"></script>
   <script defer src="/static/app.js"></script>
 </head>
 <body>
@@ -65,10 +67,10 @@
     <main class="workspace">
       <header class="topbar">
         <div class="topbar-start"><button class="icon-button menu-toggle" id="menu-toggle" aria-label="보관함 열기" aria-controls="sidebar" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-menu"/></svg></button><div class="breadcrumb"><svg class="icon" aria-hidden="true"><use href="#i-file"/></svg><strong id="document-label">내 작업 공간</strong></div></div>
-        <div class="topbar-actions"><span class="save-status" id="save-status" role="status"><span class="status-dot"></span> 준비 완료</span><button class="icon-button" id="focus-button" title="집중 모드 (Ctrl/⌘ + Shift + F)" aria-label="집중 모드" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-focus"/></svg></button><button class="button subtle" id="metadata-button" aria-expanded="false" aria-controls="metadata-panel" disabled><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg> 글 설정</button><button class="button primary" id="publish-button" disabled>발행 준비 <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
+        <div class="topbar-actions"><div id="workspace-menu-root" class="toolbar-menu-wrap"></div><span class="save-status" id="save-status" role="status"><span class="status-dot"></span> 준비 완료</span><button class="icon-button" id="focus-button" title="집중 모드 (Ctrl/⌘ + Shift + F)" aria-label="집중 모드" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-focus"/></svg></button><button class="button subtle" id="metadata-button" aria-expanded="false" aria-controls="metadata-panel" disabled><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg> 글 설정</button><button class="button primary" id="publish-button" disabled>발행 준비 <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
       </header>
 
-      <div class="studio-utilities"><div id="library-tools-root"></div><div id="cloud-tools-root"></div></div>
+      <div class="studio-utilities" hidden><div id="library-tools-root"></div><div id="cloud-tools-root"></div></div>
       <div class="work-area">
         <section class="welcome" id="welcome">
           <div class="welcome-hero"><div class="welcome-copy"><div class="welcome-eyebrow">나의 글쓰기 공간</div><h1>오늘의 생각을,<br>한 편의 글로<span>.</span></h1><p>쓰다 만 이야기를 이어가도,<br>새로운 첫 문장을 시작해도 좋아요.</p><div class="welcome-actions"><button class="button primary large" id="welcome-new">새 글 쓰기 <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button><button class="button subtle large" id="welcome-import"><svg class="icon" aria-hidden="true"><use href="#i-upload"/></svg> 글 가져오기</button></div></div><div class="writing-illustration" aria-hidden="true"><div class="paper-sheet back"></div><div class="paper-sheet front"><span class="paper-label">A SPACE FOR YOUR IDEAS</span><span class="paper-heading">한 문장,<br>또 한 문장.</span><span class="paper-line"></span><span class="paper-line short"></span><span class="paper-sign">나만의 속도로 써 내려가요.</span></div><div class="illustration-pen"></div><div class="illustration-dot"></div></div></div>
@@ -80,12 +82,13 @@
 
         <section class="document" id="document" hidden aria-label="블로그 글 편집기">
           <div class="recovery-banner" id="recovery-banner" hidden><span>이 브라우저에 아직 저장되지 않은 작성 내용이 있어요.</span><button id="recover-button">내용 복구</button><button id="discard-recovery">무시</button></div>
-          <div class="document-header"><div class="document-eyebrow"><span id="document-kind">DRAFT</span><span class="eyebrow-divider"></span><span id="document-category">나의 이야기</span></div><label class="visually-hidden" for="title">글 제목</label><textarea id="title" placeholder="제목을 입력하세요" rows="1" maxlength="300"></textarea><label class="visually-hidden" for="excerpt">글 소개</label><textarea id="excerpt" rows="1" placeholder="이 글을 소개하는 한 문장 (선택)" maxlength="1000"></textarea><div class="editor-tools"><div class="mode-switch" aria-label="편집 모드"><button id="mode-visual" aria-pressed="true">시각 편집</button><button id="mode-markdown" aria-pressed="false">Markdown</button></div><div class="alignment-tools" role="group" aria-label="문단 정렬"><span class="alignment-label">정렬</span>
+          <div class="document-header"><div class="document-eyebrow"><span id="document-kind">DRAFT</span><span class="eyebrow-divider"></span><span id="document-category">나의 이야기</span></div><label class="visually-hidden" for="title">글 제목</label><textarea id="title" placeholder="제목을 입력하세요" rows="1" maxlength="300"></textarea><label class="visually-hidden" for="excerpt">글 소개</label><textarea id="excerpt" rows="1" placeholder="이 글을 소개하는 한 문장 (선택)" maxlength="1000"></textarea><div class="editor-tools legacy-editor-tools"><div class="mode-switch" aria-label="편집 모드"><button id="mode-visual" aria-pressed="true">시각 편집</button><button id="mode-markdown" aria-pressed="false">Markdown</button></div><div class="alignment-tools" role="group" aria-label="문단 정렬"><span class="alignment-label">정렬</span>
               <button type="button" id="align-left" aria-label="왼쪽 정렬" title="왼쪽 정렬" aria-pressed="false" disabled><svg class="icon" aria-hidden="true"><use href="#i-align-left"/></svg></button>
               <button type="button" id="align-center" aria-label="가운데 정렬" title="가운데 정렬" aria-pressed="false" disabled><svg class="icon" aria-hidden="true"><use href="#i-align-center"/></svg></button>
               <button type="button" id="align-right" aria-label="오른쪽 정렬" title="오른쪽 정렬" aria-pressed="false" disabled><svg class="icon" aria-hidden="true"><use href="#i-align-right"/></svg></button>
             </div><div class="editor-quick-actions"><button id="insert-images" aria-label="이미지" title="이미지 넣기"><svg class="icon" aria-hidden="true"><use href="#i-image"/></svg><span>이미지</span></button><button id="export-button" aria-label="내려받기" title="Markdown 내려받기"><svg class="icon" aria-hidden="true"><use href="#i-download"/></svg><span>내려받기</span></button><button id="history-button" aria-label="기록" title="이전 저장 내역"><svg class="icon" aria-hidden="true"><use href="#i-clock"/></svg><span>기록</span></button></div></div><input id="image-files" type="file" accept="image/*" multiple hidden><div class="mode-notice" id="mode-notice" hidden></div></div>
-          <div class="editor-frame"><div class="extension-tools"><div id="writing-tools-root"></div><div id="media-tools-root"></div></div><div id="editor"></div><div class="upload-indicator" id="upload-indicator" hidden role="status">이미지 업로드 중…</div></div>
+          <div id="editor-dock" class="editor-dock" role="region" aria-label="글쓰기 도구"></div>
+          <div class="editor-frame"><div class="extension-tools toolbar-source-tools"><div id="writing-tools-root"></div><div id="media-tools-root"></div></div><div id="editor"></div><div class="upload-indicator" id="upload-indicator" hidden role="status">이미지 업로드 중…</div></div>
           <footer class="document-footer"><span id="word-count">0자 · 읽는 시간 1분</span><span>자동 저장 <span aria-hidden="true">·</span> <kbd>Ctrl/⌘ S</kbd> 지금 저장</span></footer>
         </section>
 
