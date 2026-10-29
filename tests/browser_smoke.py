@@ -428,7 +428,13 @@ class BrowserTests(unittest.TestCase):
 
     def test_offline_recovery_and_download_use_latest_unsaved_text(self):
         draft = self.new_post('오프라인 복구')
-        self.page.route('**/api/drafts', lambda route: route.abort())
+        blocked_writes = []
+
+        def block_draft_write(route):
+            blocked_writes.append(route.request.post_data_json)
+            route.abort()
+
+        self.page.route('**/api/drafts', block_draft_write)
         self.page.route('**/api/export?*', lambda route: route.abort())
         self.page.locator('#title').fill('저장 실패해도 남는 마지막 제목')
         self.page.locator('.toastui-editor-ww-container [contenteditable=true]').fill('서버에 아직 저장되지 않은 마지막 문장')
@@ -436,11 +442,24 @@ class BrowserTests(unittest.TestCase):
         with self.page.expect_download() as download:
             tool(self.page, '#export-button').click()
         self.assertIn('서버에 아직 저장되지 않은 마지막 문장', Path(download.value.path()).read_text('utf-8'))
-        self.page.unroute('**/api/drafts')
-        self.page.unroute('**/api/export?*')
+        self.assertTrue(any(payload['body'] == '서버에 아직 저장되지 않은 마지막 문장'
+                            for payload in blocked_writes), 'The latest draft must actually fail to reach the server')
+        # Keep writes offline through navigation. A dirty page may save again
+        # during visibilitychange; restoring the network before reload can
+        # legitimately save the recovery copy and remove the need for a banner.
+        # Startup reads /api/drafts/{id}, so this write-only route permits loading
+        # the original server draft while preserving the offline precondition.
         self.page.reload()
         expect(self.page.locator('#recovery-banner')).to_be_visible()
-        self.page.locator('#recover-button').click()
+        expect(self.page.locator('#title')).to_have_value(draft['title'])
+        self.assertEqual(self.active()['body'], draft['body'])
+        self.page.unroute('**/api/drafts')
+        self.page.unroute('**/api/export?*')
+        with self.page.expect_response(lambda response: response.url.endswith('/api/drafts')
+                                       and response.request.method == 'POST') as restored:
+            self.page.locator('#recover-button').click()
+        self.assertEqual(restored.value.status, 200)
+        self.assertIn('서버에 아직 저장되지 않은 마지막 문장', restored.value.request.post_data_json['body'])
         expect(self.page.locator('#title')).to_have_value('저장 실패해도 남는 마지막 제목')
         recovered = self.saved()
         self.assertIn('서버에 아직 저장되지 않은 마지막 문장', recovered['body'])
