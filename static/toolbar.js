@@ -326,8 +326,8 @@
       heading.button.disabled=visual&&!selected.length;
       for(const button of heading.panel.querySelectorAll('[data-heading-level]'))button.setAttribute('aria-pressed',String(visual&&level!==null&&Number(button.dataset.headingLevel)===level));
       const alignmentState=window.StudioAlignment.selection(editor);
-      scope.textContent=visual?(alignmentState.scope==='selection'?'선택한 문단에 정렬 적용':'선택 없음 · 정렬은 글 전체에 적용'):'Markdown 원문 편집';
-      for(const id of ['align-left','align-center','align-right']) $(id).title=($(id).getAttribute('aria-label')||'정렬')+' · '+(alignmentState.scope==='selection'?'선택한 문단':'글 전체');
+      scope.textContent=visual?(alignmentState.scope==='table'?'선택한 표의 셀에 정렬 적용':alignmentState.scope==='selection'?'선택한 문단에 정렬 적용':'선택 없음 · 정렬은 글 전체에 적용'):'Markdown 원문 편집';
+      for(const id of ['align-left','align-center','align-right']) $(id).title=($(id).getAttribute('aria-label')||'정렬')+' · '+(alignmentState.scope==='table'?'선택한 표의 셀':alignmentState.scope==='selection'?'선택한 문단':'글 전체');
       if(visual&&session.visual){
         const view=session.visual,{selection,schema,doc}=view.state;
         for(const [id,name] of [['toolbar-bold','strong'],['toolbar-italic','emph'],['toolbar-strike','strike'],['toolbar-code','code']]){

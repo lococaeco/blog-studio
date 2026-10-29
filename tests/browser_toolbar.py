@@ -214,7 +214,7 @@ class ToolbarTests(unittest.TestCase):
         expect(editor.locator('table')).to_have_count(1)
         expect(editor.locator('table tr')).to_have_count(3)
         expect(editor.locator('table tr').first.locator('th')).to_have_count(2)
-        children = editor.locator(':scope > *').evaluate_all('(nodes)=>nodes.map(n=>({tag:n.nodeName,text:n.textContent}))')
+        children = editor.locator(':scope > *').evaluate_all('(nodes)=>nodes.map(n=>{const content=n.matches(".studio-table-scroll")?n.querySelector("table"):n;return {tag:content.nodeName,text:content.textContent};})')
         self.assertEqual(children[0], {'tag':'P','text':'표 앞 문장.'})
         self.assertEqual(children[1]['tag'], 'TABLE')
         self.assertEqual(children[-1], {'tag':'P','text':'마지막 문장.'})

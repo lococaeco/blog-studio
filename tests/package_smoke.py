@@ -107,6 +107,8 @@ def main():
             assert not state['drafts']
             for path in ('/', '/static/app.js', '/static/alignment.js', '/static/style.css',
                          '/static/toolbar.js', '/static/toolbar.css',
+                         '/static/text-tools.js', '/static/text-tools.css',
+                         '/static/table-tools.js', '/static/table-tools.css',
                          '/static/writing-tools.js', '/static/writing-tools.css',
                          '/static/media-tools.js', '/static/media-tools.css',
                          '/static/library-tools.js', '/static/library-tools.css',

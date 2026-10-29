@@ -5,6 +5,7 @@
   const sessions = new WeakMap();
   const schemas = new WeakSet();
   const preparedFiles = new WeakSet();
+  const imageDirections = new Set(['left', 'center', 'right']);
   const CARD_STYLE = 'border: 1px solid #d8e2dd; border-radius: 8px; padding: 16px; margin: 20px 0;';
   const $ = id => document.getElementById(id);
 
@@ -52,6 +53,31 @@
     return output;
   }
 
+  function imageLayout(dom) {
+    const attrs = {};
+    const width = dom.getAttribute('width') || dom.style.width.replace(/px$/, '');
+    if (/^\d+(?:\.\d+)?$/.test(width) && Number(width) > 0) attrs.width = String(Math.max(1, Math.min(4096, Math.round(Number(width)))));
+    const direction = dom.getAttribute('data-studio-image-align');
+    if (imageDirections.has(direction)) attrs['data-studio-image-align'] = direction;
+    return imageLayoutAttrs(attrs);
+  }
+
+  function imageLayoutAttrs(attrs) {
+    attrs = { ...attrs };
+    // Save portable, bounded image styles rather than a CSS class that only
+    // exists inside the editor. Pixel width remains responsive on the blog.
+    const styles = [];
+    if (attrs.width) styles.push(`width: ${attrs.width}px`);
+    if (attrs.width || attrs['data-studio-image-align']) styles.push('max-width: 100%', 'height: auto');
+    const direction = attrs['data-studio-image-align'];
+    if (imageDirections.has(direction)) {
+      styles.push('display: block', `margin-left: ${direction === 'left' ? '0' : 'auto'}`, `margin-right: ${direction === 'right' ? '0' : 'auto'}`);
+    }
+    if (styles.length) attrs.style = styles.join('; ') + ';';
+    else delete attrs.style;
+    return attrs;
+  }
+
   function preserveMedia(schema) {
     if (schemas.has(schema)) return;
     schemas.add(schema);
@@ -60,7 +86,7 @@
       node.spec.parseDOM = node.spec.parseDOM.map(rule => ({ ...rule, getAttrs(dom) {
         const original = rule.getAttrs ? rule.getAttrs(dom) : rule.attrs;
         if (original === false) return false;
-        const attrs = { ...original?.htmlAttrs };
+        const attrs = { ...original?.htmlAttrs, ...(name === 'image' && imageLayout(dom)) };
         if (name === 'image' && dom.hasAttribute('data-studio-caption')) {
           attrs['data-studio-caption'] = dom.getAttribute('data-studio-caption').slice(0, 1000);
         }
@@ -74,26 +100,50 @@
     delete schema.cached.domParser;
   }
 
+  function hasFormattedImage(node) {
+    let found = false;
+    node.descendants(child => {
+      if (child.type.name === 'image') {
+        const attrs = child.attrs.htmlAttrs || {};
+        if (attrs.width || attrs['data-studio-image-align'] || Object.hasOwn(attrs, 'data-studio-caption')) found = true;
+      }
+    });
+    return found;
+  }
+
+  function mediaBlock(info, convertor) {
+    if (!hasFormattedImage(info.node) && info.node.attrs.htmlAttrs?.['data-studio-card'] !== 'link') return convertor.origin();
+    const html = DOMPurify.sanitize(renderNode(info.node).outerHTML, { USE_PROFILES: { html: true } });
+    info.node = info.node.copy();
+    // Preserve the enclosing structure as one HTML block. Writing a raw image
+    // paragraph inside Markdown list/quote syntax swallows the following prose.
+    return { rawHTML: ['\n\n' + html + '\n\n', ''] };
+  }
+
   function plugin(context) {
     const session = { view: null, selected: null, controller: null };
     sessions.set(context.instance, session);
     return {
       toMarkdownRenderers: {
         image(info, convertor) {
-          if (!Object.hasOwn(info.node.attrs.htmlAttrs || {}, 'data-studio-caption')) return convertor.origin();
+          const attrs = info.node.attrs.htmlAttrs || {};
+          if (!Object.hasOwn(attrs, 'data-studio-caption') && !attrs.width && !attrs['data-studio-image-align']) return convertor.origin();
           return { rawHTML: DOMPurify.sanitize(renderNode(info.node).outerHTML, { USE_PROFILES: { html: true } }) };
         },
-        blockQuote(info, convertor) {
-          if (info.node.attrs.htmlAttrs?.['data-studio-card'] !== 'link') return convertor.origin();
-          const html = DOMPurify.sanitize(renderNode(info.node).outerHTML, { USE_PROFILES: { html: true } });
-          info.node = info.node.copy();
-          // Raw block writers suppress the normal preceding block separator.
-          // Explicit boundaries keep the card a block when following prose.
-          return { rawHTML: ['\n\n' + html + '\n\n', ''] };
-        },
+        blockQuote: mediaBlock,
+        bulletList: mediaBlock,
+        orderedList: mediaBlock,
       },
       wysiwygPlugins: [() => new context.pmState.Plugin({
-        state: { init: (_, state) => preserveMedia(state.schema), apply: (_, value) => value },
+        state: { init: (_, state) => preserveMedia(state.schema), apply(transaction, value) {
+          if (session.selected && transaction.docChanged) {
+            const mapped = transaction.mapping.mapResult(session.selected.position, 1);
+            const node = transaction.doc.nodeAt(mapped.pos);
+            session.selected = node?.type.name === 'image' && node.attrs.imageUrl === session.selected.url
+              ? { ...session.selected, position: mapped.pos } : null;
+          }
+          return value;
+        } },
         props: { handleClickOn(view, pos, node, nodePos) {
           if (node.type.name === 'image') {
             session.selected = { position: nodePos, url: node.attrs.imageUrl };
@@ -178,9 +228,9 @@
     return node?.type.name === 'image' && node.attrs.imageUrl === last.url ? { node, position: last.position } : null;
   }
 
-  function dispatch(session, transaction) {
+  function dispatch(session, transaction, scroll = true) {
     transaction.setMeta('closeHistory$', true);
-    session.view.dispatch(transaction.scrollIntoView());
+    session.view.dispatch(scroll ? transaction.scrollIntoView() : transaction);
     session.view.dispatch(session.view.state.tr.setMeta('closeHistory$', true));
     session.view.focus();
   }
@@ -215,7 +265,7 @@
     const oldCaption = attrs['data-studio-caption'] || '';
     delete attrs['data-studio-caption'];
     if (caption) attrs['data-studio-caption'] = caption;
-    const transaction = state.tr.setNodeMarkup(target.position, null, { ...current.attrs, imageUrl: url, altText: alt, htmlAttrs: Object.keys(attrs).length ? attrs : null });
+    const transaction = state.tr.setNodeMarkup(target.position, null, { ...current.attrs, imageUrl: url, altText: alt, htmlAttrs: Object.keys(attrs).length ? attrs : null }, current.marks);
     const resolved = state.doc.resolve(target.position);
     if (resolved.depth) {
       const after = resolved.after(resolved.depth);
@@ -229,8 +279,248 @@
         else transaction.delete(after, after + next.nodeSize);
       } else if (caption && caption !== oldCaption) transaction.insert(after, captionNode());
     }
-    dispatch(session, transaction);
+    dispatch(session, transaction, false);
     session.selected = { position: target.position, url };
+  }
+
+  function installImageInteraction({ editor, session, getDraft, openImage, notify }) {
+    const documentRoot = $('document');
+    const outline = element('div', undefined, 'media-image-outline');
+    outline.id = 'media-image-outline'; outline.hidden = true;
+    const bar = element('div', undefined, 'media-image-bar');
+    bar.id = 'media-image-bar'; bar.hidden = true;
+    bar.dataset.studioMenu = '';
+    bar.setAttribute('role', 'group'); bar.setAttribute('aria-label', '선택한 이미지 도구');
+    const label = element('span', '이미지', 'media-image-label');
+    const widthLabel = element('label', '너비');
+    const widthInput = element('input'); widthInput.id = 'media-display-width'; widthInput.type = 'number';
+    widthInput.min = '24'; widthInput.max = '4096'; widthInput.step = '1'; widthInput.setAttribute('aria-label', '이미지 표시 너비');
+    widthLabel.append(widthInput, element('span', 'px'));
+    bar.append(label, widthLabel);
+    const menu = element('div', undefined, 'media-image-context');
+    menu.id = 'media-image-context'; menu.hidden = true;
+    menu.dataset.studioMenu = '';
+    menu.setAttribute('role', 'group'); menu.setAttribute('aria-label', '이미지 추가 기능');
+    let activeDraft = null, active = false, drag = null, frame = 0, menuPoint = null;
+    const closeMenu = () => { menu.hidden = true; $('media-image-more').setAttribute('aria-expanded', 'false'); };
+    const hide = () => { outline.hidden = bar.hidden = true; closeMenu(); };
+    const action = callback => event => {
+      event?.preventDefault();
+      try { callback(); } catch (failure) { notify(failure.message || '이미지를 다시 선택해 주세요.', true); }
+    };
+    function button(parent, id, title, callback) {
+      const node = element('button', title); node.type = 'button'; node.id = id;
+      node.addEventListener('mousedown', event => event.preventDefault());
+      node.addEventListener('click', action(callback)); parent.append(node); return node;
+    }
+    function target() {
+      if (!active || !getDraft() || getDraft().id !== activeDraft || !editor.isWysiwygMode() || documentRoot.hidden || documentRoot.inert || document.querySelector('dialog[open]')) return null;
+      const selected = selectedImage(editor);
+      if (!selected) return null;
+      const dom = session.view.nodeDOM(selected.position);
+      const image = dom?.matches?.('img') ? dom : dom?.querySelector?.('img');
+      if (!image?.isConnected || !image.getClientRects().length) return null;
+      return { ...selected, image };
+    }
+    function maxWidth(item) {
+      const parent = item.image.parentElement.closest('p,td,th,h1,h2,h3,h4,h5,h6,li,blockquote') || session.view.dom;
+      const box = parent.getBoundingClientRect(), style = getComputedStyle(parent);
+      return Math.max(24, Math.min(4096, box.width - parseFloat(style.paddingLeft || 0) - parseFloat(style.paddingRight || 0)));
+    }
+    function updateLayout(change, live = false) {
+      const item = target(); if (!item) return;
+      const attrs = { ...item.node.attrs.htmlAttrs };
+      for (const [name, value] of Object.entries(change)) {
+        if (value === null) delete attrs[name]; else attrs[name] = String(value);
+      }
+      const htmlAttrs = imageLayoutAttrs(attrs);
+      if (JSON.stringify(htmlAttrs) === JSON.stringify(item.node.attrs.htmlAttrs || {})) return;
+      const tr = session.view.state.tr.setNodeMarkup(item.position, null, { ...item.node.attrs, htmlAttrs }, item.node.marks);
+      if (live && drag) session.view.dispatch(tr.setTime(drag.started));
+      else dispatch(session, tr, false);
+      schedule();
+    }
+    function resize(value, live = false) {
+      const item = target(); if (!item || !Number.isFinite(Number(value)) || Number(value) <= 0) return;
+      updateLayout({ width: Math.round(Math.max(24, Math.min(maxWidth(item), Number(value)))) }, live);
+    }
+    function activate() {
+      activeDraft = getDraft()?.id; active = true;
+      window.StudioToolbar?.closeMenus();
+      document.dispatchEvent(new CustomEvent('studio:context-open', { detail: { source: 'image' } }));
+      schedule();
+    }
+    function pick(image) {
+      const view = session.view; if (!view?.dom.contains(image)) return false;
+      window.StudioAlignment?.flushPendingChanges(editor);
+      const position = view.posAtDOM(image, 0);
+      for (const candidate of [position, position - 1]) {
+        const node = candidate >= 0 && view.state.doc.nodeAt(candidate);
+        if (node?.type.name !== 'image') continue;
+        session.selected = { position: candidate, url: node.attrs.imageUrl }; activate(); return true;
+      }
+      return false;
+    }
+    function placeMenu() {
+      const width = Math.min(264, innerWidth - 24);
+      menu.style.width = width + 'px';
+      const rect = $('media-image-more').getBoundingClientRect();
+      const point = menuPoint || { x: rect.right - width, y: rect.bottom + 7 };
+      menu.style.left = Math.max(12, Math.min(point.x, innerWidth - width - 12)) + 'px';
+      menu.style.maxHeight = Math.max(100, innerHeight - 24) + 'px';
+      menu.style.top = Math.max(12, Math.min(point.y, innerHeight - menu.offsetHeight - 12)) + 'px';
+    }
+    function showMenu(point = null, keyboard = false) {
+      if (!target()) return;
+      window.StudioToolbar?.closeMenus(); menuPoint = point; menu.hidden = false;
+      $('media-image-more').setAttribute('aria-expanded', 'true'); placeMenu();
+      if (keyboard) menu.querySelector('button')?.focus({ preventScroll: true });
+    }
+    const crop = () => { closeMenu(); openImage(true).catch(error => { $('media-image-error').textContent = error.message; }); };
+    button(bar, 'media-image-crop', '자르기', crop);
+    const more = button(bar, 'media-image-more', '•••', () => menu.hidden ? showMenu(null, true) : closeMenu());
+    more.setAttribute('aria-label', '이미지 추가 기능'); more.setAttribute('aria-expanded', 'false'); more.setAttribute('aria-controls', menu.id);
+    more.setAttribute('aria-haspopup', 'true');
+    button(menu, 'media-context-crop', '자르기 · 파일 크기 조절', crop);
+    button(menu, 'media-context-caption', '설명 · 대체 텍스트', () => { closeMenu(); openDetails(); });
+    const align = element('div', undefined, 'media-image-align');
+    align.setAttribute('role', 'group'); align.setAttribute('aria-label', '이미지 위치');
+    for (const [direction, title] of [['left', '왼쪽'], ['center', '가운데'], ['right', '오른쪽']]) {
+      const item = button(align, 'media-image-align-' + direction, title, () => { updateLayout({ 'data-studio-image-align': direction }); closeMenu(); });
+      item.setAttribute('aria-label', '이미지 ' + title + ' 정렬'); item.setAttribute('aria-pressed', 'false');
+    }
+    menu.append(element('small', '이미지 위치'), align);
+    button(menu, 'media-image-full-width', '본문 너비에 맞추기', () => { const item = target(); if (item) resize(maxWidth(item)); closeMenu(); });
+    button(menu, 'media-image-reset-size', '원래 크기로', () => { updateLayout({ width: null }); closeMenu(); });
+    button(menu, 'media-image-delete', '이미지 삭제', () => {
+      const item = target(); if (!item) return;
+      let tr = session.view.state.tr;
+      const resolved = session.view.state.doc.resolve(item.position);
+      const caption = item.node.attrs.htmlAttrs?.['data-studio-caption'];
+      if (caption && resolved.depth) {
+        const after = resolved.after(resolved.depth), next = tr.doc.nodeAt(after);
+        if (next?.type.name === 'paragraph' && next.textContent === caption && next.content.content.every(child => child.isText && child.marks.some(mark => mark.type.name === 'emph'))) tr = tr.delete(after, after + next.nodeSize);
+      }
+      tr = tr.delete(item.position, item.position + item.node.nodeSize);
+      active = false; session.selected = null; hide(); dispatch(session, tr, false);
+    }).classList.add('media-image-danger');
+    widthInput.addEventListener('change', action(() => resize(widthInput.value)));
+    widthInput.addEventListener('keydown', event => {
+      if (event.key === 'Enter') { event.preventDefault(); resize(widthInput.value); session.view?.focus(); }
+    });
+    for (const [edge, title] of [['nw', '왼쪽 위'], ['ne', '오른쪽 위'], ['sw', '왼쪽 아래'], ['se', '오른쪽 아래'], ['w', '왼쪽'], ['e', '오른쪽']]) {
+      const handle = button(outline, 'media-resize-' + edge, '', () => {});
+      handle.className = 'media-resize-handle media-resize-' + edge;
+      handle.setAttribute('aria-label', '이미지 ' + title + ' 크기 조절');
+      handle.title = '끌어서 크기 조절 · 방향키로 10px 조절';
+      handle.addEventListener('keydown', event => {
+        if (!['ArrowLeft','ArrowRight','ArrowUp','ArrowDown'].includes(event.key)) return;
+        event.preventDefault(); const item = target(); if (!item) return;
+        const delta = (event.key === 'ArrowLeft' || event.key === 'ArrowDown' ? -1 : 1) * (event.shiftKey ? 50 : 10);
+        resize(item.image.getBoundingClientRect().width + delta);
+        handle.focus({ preventScroll: true });
+      });
+      handle.addEventListener('pointerdown', event => {
+        if (event.button !== 0) return;
+        const item = target(); if (!item) return;
+        event.preventDefault(); closeMenu();
+        const box = item.image.getBoundingClientRect();
+        drag = { edge, x: event.clientX, y: event.clientY, width: box.width, ratio: box.width / Math.max(1, box.height), started: Date.now() };
+        session.view.dispatch(session.view.state.tr.setMeta('closeHistory$', true));
+        handle.setPointerCapture(event.pointerId); outline.classList.add('is-resizing');
+      });
+      handle.addEventListener('pointermove', event => {
+        if (!drag || drag.edge !== edge) return;
+        let delta = (event.clientX - drag.x) * (edge.includes('w') ? -1 : 1);
+        if (edge.length === 2) {
+          const vertical = (event.clientY - drag.y) * (edge.includes('n') ? -1 : 1) * drag.ratio;
+          if (Math.abs(vertical) > Math.abs(delta)) delta = vertical;
+        }
+        resize(drag.width + delta, true);
+      });
+      const finish = () => {
+        if (!drag || drag.edge !== edge) return;
+        drag = null; outline.classList.remove('is-resizing');
+        session.view?.dispatch(session.view.state.tr.setMeta('closeHistory$', true)); schedule();
+      };
+      handle.addEventListener('pointerup', finish); handle.addEventListener('pointercancel', finish); handle.addEventListener('lostpointercapture', finish);
+    }
+    const details = element('dialog', undefined, 'media-dialog media-image-details');
+    details.id = 'media-image-details'; details.setAttribute('aria-labelledby', 'media-details-title');
+    details.innerHTML = '<form><div class="media-dialog-heading"><h2 id="media-details-title">이미지 설명</h2><button type="button" id="media-details-close" aria-label="이미지 설명 닫기">×</button></div><label>대체 텍스트<input id="media-details-alt" maxlength="500" placeholder="이미지를 설명하는 문장"></label><label>사진 설명 (캡션)<input id="media-details-caption" maxlength="1000" placeholder="이미지 아래에 표시할 설명"></label><div class="media-dialog-footer"><button type="button" id="media-details-cancel">취소</button><button type="submit" id="media-details-apply" class="button primary">적용</button></div></form>';
+    documentRoot.append(outline, bar, menu, details);
+    let detailsTarget = null, detailsDraft = null;
+    function openDetails() {
+      const item = target(); if (!item) return;
+      detailsTarget = item; detailsDraft = getDraft()?.id;
+      $('media-details-alt').value = item.node.attrs.altText || '';
+      $('media-details-caption').value = item.node.attrs.htmlAttrs?.['data-studio-caption'] || '';
+      details.showModal(); $('media-details-alt').focus();
+    }
+    for (const id of ['media-details-close','media-details-cancel']) $(id).onclick = () => details.close();
+    details.querySelector('form').addEventListener('submit', action(() => {
+      if (!detailsTarget || getDraft()?.id !== detailsDraft) { details.close(); return; }
+      insertImage(editor, detailsTarget, detailsTarget.node.attrs.imageUrl, $('media-details-alt').value.trim(), $('media-details-caption').value.trim());
+      details.close(); activate();
+    }));
+    function refresh() {
+      const item = target();
+      if (!item) { hide(); return; }
+      const rect = item.image.getBoundingClientRect();
+      const dock = $('editor-dock').getBoundingClientRect();
+      const minTop = Math.max(8, Math.min(dock.bottom + 8, innerHeight));
+      if (rect.bottom < minTop || rect.top > innerHeight - 12 || !rect.width || !rect.height) { hide(); return; }
+      outline.hidden = false;
+      Object.assign(outline.style, { left: rect.left + 'px', top: rect.top + 'px', width: rect.width + 'px', height: rect.height + 'px' });
+      // Keep handles below the sticky toolbar, even when the photo scrolls
+      // partly underneath it. The box itself never intercepts image clicks.
+      outline.style.clipPath = `inset(${Math.max(-8, minTop - rect.top)}px -8px -8px -8px)`;
+      bar.hidden = false;
+      const width = Math.min(320, innerWidth - 24);
+      bar.style.width = width + 'px';
+      bar.style.left = Math.max(12, Math.min(rect.left + (rect.width - width) / 2, innerWidth - width - 12)) + 'px';
+      bar.style.top = Math.max(minTop, Math.min(rect.top - 48, innerHeight - 55)) + 'px';
+      if (document.activeElement !== widthInput) widthInput.value = Math.round(rect.width);
+      for (const direction of imageDirections) $('media-image-align-' + direction).setAttribute('aria-pressed', String(item.node.attrs.htmlAttrs?.['data-studio-image-align'] === direction));
+      if (!menu.hidden) placeMenu();
+    }
+    function schedule() { if (!frame) frame = requestAnimationFrame(() => { frame = 0; refresh(); }); }
+    $('editor').addEventListener('contextmenu', event => {
+      const image = event.target.closest('img[src]');
+      if (!image || !editor.isWysiwygMode() || !pick(image)) return;
+      event.preventDefault(); event.stopPropagation(); showMenu({ x: event.clientX, y: event.clientY });
+    }, true);
+    document.addEventListener('pointerdown', event => {
+      if (outline.contains(event.target) || bar.contains(event.target) || menu.contains(event.target) || details.contains(event.target)) return;
+      closeMenu();
+      // Clicks on the shared toolbar keep the target available to its image
+      // editing command. An ordinary text click clears it in the host handler.
+      if (!event.target.closest('#editor, #editor-dock, #media-image-dialog')) { active = false; hide(); }
+    }, true);
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape' && !details.open && !$('media-image-dialog').open && (!menu.hidden || !outline.hidden)) {
+        event.preventDefault(); closeMenu(); active = false; hide(); session.view?.focus();
+      }
+      if ((event.key === 'ContextMenu' || event.shiftKey && event.key === 'F10') && target()) {
+        event.preventDefault(); showMenu(null, true);
+      }
+    });
+    menu.addEventListener('keydown', event => {
+      const keys = ['ArrowDown','ArrowUp','Home','End']; if (!keys.includes(event.key)) return;
+      event.preventDefault(); const buttons = [...menu.querySelectorAll('button')];
+      const current = buttons.indexOf(document.activeElement);
+      const next = event.key === 'Home' ? 0 : event.key === 'End' ? buttons.length - 1 : (current + (event.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length;
+      buttons[next]?.focus({ preventScroll: true });
+    });
+    document.addEventListener('studio:context-open', event => { if (event.detail?.source !== 'image') { active = false; hide(); } });
+    addEventListener('scroll', schedule, { capture: true, passive: true }); addEventListener('resize', schedule);
+    $('editor').addEventListener('load', schedule, true);
+    new ResizeObserver(schedule).observe($('editor'));
+    new MutationObserver(schedule).observe(documentRoot, { attributes: true, attributeFilter: ['inert', 'hidden'] });
+    const dialogObserver = new MutationObserver(schedule);
+    document.querySelectorAll('dialog').forEach(dialog => dialogObserver.observe(dialog, { attributes: true, attributeFilter: ['open'] }));
+    editor.on('changeMode', () => { active = false; hide(); });
+    return { refresh: schedule, activate };
   }
 
   function install(context) {
@@ -271,6 +561,7 @@
     let dialogDraft = '';
     let busy = false;
     let cropDrag = null;
+    let imageInteraction = null;
 
     const error = (id, message) => { $(id).textContent = message || ''; };
     const action = (fn, errorId) => async event => { try { await fn(event); } catch (e) { error(errorId, e.message || '작업을 완료하지 못했어요.'); } };
@@ -291,6 +582,7 @@
       $('media-link-card').disabled = disabled;
       $('media-edit-image').disabled = disabled || !selectedImage(editor);
       host.title = disabled ? '시각 편집에서 사용할 수 있어요.' : '';
+      imageInteraction?.refresh();
     }
 
     function crop() {
@@ -519,6 +811,7 @@
     $('media-edit-image').onclick = () => openImage(true).catch(e => error('media-image-error', e.message));
     $('media-link-card').onclick = () => { try { openCard(); } catch (e) { notify(e.message, true); } };
     host.querySelectorAll('button').forEach(button => button.addEventListener('mousedown', event => event.preventDefault()));
+    imageInteraction = installImageInteraction({ editor, session, getDraft, openImage, notify });
     // TOAST UI's image node view consumes its click before ProseMirror's
     // handleClickOn. Capture the DOM click, then map it through the public view
     // API so existing images remain editable after reopening a saved draft.
@@ -533,6 +826,7 @@
           const node = candidate >= 0 && view.state.doc.nodeAt(candidate);
           if (node?.type.name === 'image') {
             session.selected = { position: candidate, url: node.attrs.imageUrl };
+            imageInteraction.activate();
             break;
           }
         }

@@ -5,7 +5,48 @@
   const LIMIT = 5000;
   const empty = () => ({ matches: [], truncated: false });
 
-  function plugin(context) {
+  function styledMark(tag) {
+    return (info, context) => {
+      const { node: mark, parent, index } = info;
+      // Markdown emphasis delimiters beside inline HTML and Korean text can
+      // become literal asterisks (e.g. **<span>색</span>**입니다). Serialize only
+      // the affected mark run as HTML; keep ordinary Markdown elsewhere.
+      const hasMark = child => child?.marks.some(item => item.eq(mark));
+      let position = context.entering ? index : index - 1;
+      if (parent && position >= 0 && position < parent.childCount && hasMark(parent.child(position))) {
+        while (position > 0 && hasMark(parent.child(position - 1))) position -= 1;
+        for (; position < parent.childCount && hasMark(parent.child(position)); position += 1) {
+          if (parent.child(position).marks.some(item => ['span', 'u'].includes(item.type.name))) {
+            return { rawHTML: context.entering ? '<' + tag + '>' : '</' + tag + '>' };
+          }
+        }
+      }
+      return context.origin ? context.origin() : {};
+    };
+  }
+
+  function styledCode(info, context) {
+    const index = context.entering ? info.index : info.index - 1;
+    const child = info.parent && index >= 0 && index < info.parent.childCount ? info.parent.child(index) : null;
+    // Code with a custom HTML mark is emitted through the escaped text path;
+    // plain code keeps TOAST's backtick writer. Looking at this child rather
+    // than the whole code run keeps plain code fragments on that safe path.
+    if (child?.marks.some(mark => ['span', 'u'].includes(mark.type.name))) return { rawHTML: context.entering ? '<code>' : '</code>' };
+    return context.origin ? context.origin() : {};
+  }
+
+  function styledCodeText(info, context) {
+    const { node } = info;
+    if (node.isText && node.marks.some(mark => mark.type.name === 'code') && node.marks.some(mark => ['span', 'u'].includes(mark.type.name))) {
+      // This conversion-local text copy prevents Markdown escapes or code
+      // examples such as <img> from becoming live HTML inside a styled code
+      // span on the published blog. The document and undo state stay intact.
+      info.node = node.withText(node.text.replace(/[^\p{L}\p{N} ]/gu, char => '&#' + char.codePointAt(0) + ';'));
+    }
+    return context.origin ? context.origin() : {};
+  }
+
+  function plugin(context, options = {}) {
     const session = { context, editor: context.instance, visual: null, markdown: null, query: '', caseSensitive: false, searchOpen: false, refresh: null, pending: false, cache: null };
     sessions.set(context.instance, session);
     const capture = mode => () => new context.pmState.Plugin({
@@ -26,6 +67,7 @@
     // in TOAST UI's official color-syntax plugin. No vendor code is modified.
     return {
       toHTMLRenderers: { htmlInline: { span: inline('span'), u: inline('u') } },
+      ...(!options.importOnly && { toMarkdownRenderers: { strong: styledMark('strong'), emph: styledMark('em'), strike: styledMark('del'), code: styledCode, text: styledCodeText } }),
       wysiwygPlugins: [capture('visual')], markdownPlugins: [capture('markdown')],
     };
   }
@@ -275,7 +317,7 @@
       parser = new toastui.Editor({ el: host, initialEditType: 'wysiwyg', initialValue: body,
         usageStatistics: false, autofocus: false, hideModeSwitch: true,
         customHTMLSanitizer: html => DOMPurify.sanitize(html, { USE_PROFILES: { html: true } }),
-        plugins: [plugin, importRules] });
+        plugins: [[plugin, { importOnly: true }], importRules] });
       return callback(parser, sessions.get(parser).visual);
     } finally {
       parser?.destroy();

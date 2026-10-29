@@ -14,6 +14,8 @@
   <link rel="stylesheet" href="/static/library-tools.css">
   <link rel="stylesheet" href="/static/cloud-tools.css">
   <link rel="stylesheet" href="/static/toolbar.css">
+  <link rel="stylesheet" href="/static/text-tools.css">
+  <link rel="stylesheet" href="/static/table-tools.css">
   <script defer src="/static/vendor/purify.min.js"></script>
   <script defer src="/static/vendor/toastui-editor-all.min.js"></script>
   <script defer src="/static/vendor/ko-kr.js"></script>
@@ -25,6 +27,8 @@
   <script defer src="/static/library-tools.js"></script>
   <script defer src="/static/cloud-tools.js"></script>
   <script defer src="/static/toolbar.js"></script>
+  <script defer src="/static/text-tools.js"></script>
+  <script defer src="/static/table-tools.js"></script>
   <script defer src="/static/app.js"></script>
 </head>
 <body>
@@ -42,6 +46,8 @@
     <symbol id="i-refresh" viewBox="0 0 24 24"><path d="M20 10a8 8 0 1 0-1 7M20 4v6h-6"/></symbol>
     <symbol id="i-close" viewBox="0 0 24 24"><path d="m6 6 12 12M6 18 18 6"/></symbol>
     <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></symbol>
+    <symbol id="i-collapse" viewBox="0 0 24 24"><path d="m14 6-6 6 6 6M20 4v16"/></symbol>
+    <symbol id="i-expand" viewBox="0 0 24 24"><path d="m10 6 6 6-6 6M4 4v16"/></symbol>
     <symbol id="i-focus" viewBox="0 0 24 24"><path d="M8 3H3v5M16 3h5v5M3 16v5h5M21 16v5h-5"/></symbol>
     <symbol id="i-settings" viewBox="0 0 24 24"><path d="M4 7h4m4 0h8M4 17h10m4 0h2"/><circle cx="10" cy="7" r="2"/><circle cx="16" cy="17" r="2"/></symbol>
     <symbol id="i-align-left" viewBox="0 0 24 24"><path d="M4 5h16M4 10h10M4 15h16M4 20h10"/></symbol>
@@ -51,7 +57,7 @@
   <div class="app-shell" id="app">
     <button class="sidebar-backdrop" id="sidebar-backdrop" tabindex="-1" aria-label="보관함 닫기" hidden></button>
     <aside class="sidebar" id="sidebar" aria-label="글 보관함">
-      <a class="brand" id="home-button" href="/" aria-label="Blog Studio 홈"><span class="brand-symbol">b.</span><span>Blog Studio<small>나만의 글쓰기 공간</small></span></a>
+      <div class="sidebar-heading"><a class="brand" id="home-button" href="/" aria-label="Blog Studio 홈"><span class="brand-symbol">b.</span><span>Blog Studio<small>나만의 글쓰기 공간</small></span></a><button type="button" class="icon-button sidebar-collapse" id="sidebar-collapse" title="보관함 접기" aria-label="보관함 접기" aria-controls="sidebar"><svg class="icon" aria-hidden="true"><use href="#i-collapse"/></svg></button></div>
       <button class="button primary new-button" id="new-post"><svg class="icon" aria-hidden="true"><use href="#i-plus"/></svg> 새 글 쓰기 <kbd>N</kbd></button>
       <label class="search"><svg class="icon" aria-hidden="true"><use href="#i-search"/></svg><input id="search" type="search" placeholder="글 검색" aria-label="글 검색"><kbd>/</kbd></label>
       <nav class="library-nav" aria-label="보관함 종류">
@@ -66,7 +72,7 @@
 
     <main class="workspace">
       <header class="topbar">
-        <div class="topbar-start"><button class="icon-button menu-toggle" id="menu-toggle" aria-label="보관함 열기" aria-controls="sidebar" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-menu"/></svg></button><div class="breadcrumb"><svg class="icon" aria-hidden="true"><use href="#i-file"/></svg><strong id="document-label">내 작업 공간</strong></div></div>
+        <div class="topbar-start"><button class="icon-button menu-toggle" id="menu-toggle" title="보관함 펼치기" aria-label="보관함 열기" aria-controls="sidebar" aria-expanded="false"><svg class="icon" aria-hidden="true"><use href="#i-expand"/></svg></button><div class="breadcrumb"><svg class="icon" aria-hidden="true"><use href="#i-file"/></svg><strong id="document-label">내 작업 공간</strong></div></div>
         <div class="topbar-actions"><div id="workspace-menu-root" class="toolbar-menu-wrap"></div><span class="save-status" id="save-status" role="status"><span class="status-dot"></span> 준비 완료</span><button class="icon-button" id="focus-button" title="집중 모드 (Ctrl/⌘ + Shift + F)" aria-label="집중 모드" aria-pressed="false"><svg class="icon" aria-hidden="true"><use href="#i-focus"/></svg></button><button class="button subtle" id="metadata-button" aria-expanded="false" aria-controls="metadata-panel" disabled><svg class="icon" aria-hidden="true"><use href="#i-settings"/></svg> 글 설정</button><button class="button primary" id="publish-button" disabled>발행 준비 <svg class="icon" aria-hidden="true"><use href="#i-arrow"/></svg></button></div>
       </header>
 

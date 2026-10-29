@@ -4,6 +4,8 @@
   const $ = id => document.getElementById(id);
   const state = { bootstrap: null, token: '', draft: null, editor: null, originalBody: '', baseline: '', loading: false, dirty: false, revision: 0, saving: null, saveTimer: null, view: 'all', query: '', focus: false, settings: false, recovery: null, uploads: 0, busy: false, deletingId: null, check: null, reviewSequence: 0, renderTimer: null, storageWarned: false };
   const compactSidebar = window.matchMedia('(max-width: 900px)');
+  let sidebarCollapsed = false;
+  try { sidebarCollapsed = localStorage.getItem('blog-studio.sidebar-collapsed') === 'true'; } catch (_) { /* Optional preference. */ }
   const fieldIds = ['title', 'excerpt', 'category', 'tags', 'post-date', 'slug', 'teaser', 'toc', 'mathjax', 'comments', 'feature', 'published'];
   const flags = ['toc', 'mathjax', 'comments', 'feature', 'published'];
 
@@ -386,7 +388,7 @@
     state.editor = new toastui.Editor({
       el: $('editor'), height: 'auto', minHeight: '430px', initialEditType: 'wysiwyg', previewStyle: $('editor').clientWidth < 800 ? 'tab' : 'vertical', hideModeSwitch: true, usageStatistics: false, language: 'ko-KR', placeholder: '여기에 첫 문장을 적어보세요. 이미지를 붙여넣을 수도 있어요.', autofocus: false,
       linkAttributes: { target: '_blank', rel: 'noopener noreferrer' },
-      plugins: [window.StudioAlignment.plugin, window.StudioToolbar?.plugin, window.StudioWriting?.plugin, window.StudioMedia?.plugin].filter(Boolean),
+      plugins: [window.StudioAlignment.plugin, window.StudioToolbar?.plugin, window.StudioWriting?.plugin, window.StudioMedia?.plugin, window.StudioText?.plugin, window.StudioTable?.plugin].filter(Boolean),
       customHTMLSanitizer: html => window.DOMPurify ? window.DOMPurify.sanitize(html, { USE_PROFILES: { html: true } }) : '',
       toolbarItems: [],
       hooks: { addImageBlobHook: (blob, callback) => {
@@ -414,6 +416,8 @@
     window.StudioMedia?.install({ editor: state.editor, host: $('media-tools-root'), api, notify,
       getDraft: () => state.draft, upload: uploadImage, imageURL, getBootstrap: () => state.bootstrap, changed });
     window.StudioToolbar?.install({ editor: state.editor, notify });
+    window.StudioText?.install({ editor: state.editor, notify });
+    window.StudioTable?.install({ editor: state.editor, notify });
     // TOAST's Markdown clipboard textarea captures the model selection on
     // Ctrl/⌘+V. A native caret move (e.g. Ctrl+End) may not have reached that
     // model yet, so synchronize it before the clipboard handler takes focus.
@@ -502,8 +506,9 @@
     document.title = title + ' · Blog Studio';
     $('document-kind').textContent = state.draft.source_path ? '기존 글 수정' : '임시저장 초안';
     $('document-category').textContent = $('category').selectedOptions[0]?.textContent || '나의 이야기';
-    const body = currentBody();
-    const chars = body.replace(/\s/g, '').length;
+    const content = document.createElement('template');
+    content.innerHTML = state.editor.getHTML();
+    const chars = content.content.textContent.replace(/\s/g, '').length;
     $('word-count').textContent = chars.toLocaleString('ko-KR') + '자 · 읽는 시간 ' + Math.max(1, Math.ceil(chars / 500)) + '분';
     const teaser = imageURL($('teaser').value.trim());
     $('teaser-preview').hidden = !teaser;
@@ -516,8 +521,8 @@
     const visual = state.editor.isWysiwygMode();
     $('mode-visual').setAttribute('aria-pressed', String(visual));
     $('mode-markdown').setAttribute('aria-pressed', String(!visual));
-    $('mode-notice').hidden = !protectsRawMarkdown();
-    $('mode-notice').textContent = visual ? '시각 편집을 사용하면 Markdown 서식이 정리될 수 있어요. 수식·Liquid·복잡한 HTML은 Markdown 모드를 권장해요.' : '기존 글의 원문을 유지하며 편집 중이에요. 미리보기의 테마·Liquid·수식은 실제 사이트와 다를 수 있어요.';
+    $('mode-notice').hidden = visual || !protectsRawMarkdown();
+    $('mode-notice').textContent = visual ? '' : '기존 글의 원문을 유지하며 편집 중이에요. 미리보기의 테마·Liquid·수식은 실제 사이트와 다를 수 있어요.';
     queueRenderImages();
     updateAlignment();
   }
@@ -590,13 +595,15 @@
   }
   function syncSidebar() {
     const sidebar = $('sidebar');
-    const open = compactSidebar.matches && sidebar.classList.contains('open');
-    sidebar.inert = compactSidebar.matches && !open;
+    const overlay = compactSidebar.matches && sidebar.classList.contains('open');
+    const open = compactSidebar.matches ? overlay : !sidebarCollapsed && !state.focus;
+    $('app').classList.toggle('sidebar-collapsed', sidebarCollapsed);
+    sidebar.inert = !open;
     sidebar.setAttribute('aria-hidden', String(sidebar.inert));
     $('menu-toggle').setAttribute('aria-expanded', String(open));
-    $('sidebar-backdrop').hidden = !open;
-    document.querySelector('.workspace').inert = open;
-    if (open) { sidebar.setAttribute('role', 'dialog'); sidebar.setAttribute('aria-modal', 'true'); }
+    $('sidebar-backdrop').hidden = !overlay;
+    document.querySelector('.workspace').inert = overlay;
+    if (overlay) { sidebar.setAttribute('role', 'dialog'); sidebar.setAttribute('aria-modal', 'true'); }
     else { sidebar.removeAttribute('role'); sidebar.removeAttribute('aria-modal'); }
   }
   function closeSidebar(restoreFocus = true) {
@@ -606,15 +613,27 @@
     if (wasOpen && restoreFocus && compactSidebar.matches) $('menu-toggle').focus();
   }
   function openSidebar() {
-    if (!compactSidebar.matches) return;
     if (state.focus) {
       state.focus = false;
       $('app').classList.remove('focus-mode');
       $('focus-button').setAttribute('aria-pressed', 'false');
     }
-    $('sidebar').classList.add('open');
+    if (compactSidebar.matches) $('sidebar').classList.add('open');
+    else {
+      sidebarCollapsed = false;
+      try { localStorage.setItem('blog-studio.sidebar-collapsed', 'false'); } catch (_) { /* Optional preference. */ }
+    }
     syncSidebar();
     $('new-post').focus();
+    if (!$('document').hidden) resizeTextareas();
+  }
+  function collapseSidebar() {
+    if (compactSidebar.matches) { closeSidebar(); return; }
+    sidebarCollapsed = true;
+    try { localStorage.setItem('blog-studio.sidebar-collapsed', 'true'); } catch (_) { /* Optional preference. */ }
+    syncSidebar();
+    $('menu-toggle').focus({ preventScroll: true });
+    if (!$('document').hidden) resizeTextareas();
   }
 
   function showDialog(id) {
@@ -867,11 +886,13 @@
     $('welcome-new').onclick = act(() => newDraft());
     $('welcome-import').onclick = () => $('import-file').click();
     $('home-button').onclick = act(async event => { event.preventDefault(); await goHome(); });
-    $('home-drafts').onclick = () => { state.view = 'drafts'; renderList(); if (compactSidebar.matches) openSidebar(); else $('post-list').querySelector('button')?.focus(); };
+    $('home-drafts').onclick = () => { state.view = 'drafts'; renderList(); if (compactSidebar.matches || sidebarCollapsed || state.focus) openSidebar(); else $('post-list').querySelector('button')?.focus(); };
     $('search').oninput = event => { state.query = event.target.value; renderList(); };
     for (const button of document.querySelectorAll('[data-view]')) button.onclick = () => { state.view = button.dataset.view; renderList(); };
     $('refresh').onclick = act(async () => { await refreshBootstrap(); notify('글 목록을 새로 불러왔어요.'); });
     $('menu-toggle').onclick = () => { if ($('sidebar').classList.contains('open')) closeSidebar(); else openSidebar(); };
+    $('sidebar-collapse').onclick = collapseSidebar;
+    $('sidebar').addEventListener('transitionend', event => { if (event.target === $('sidebar') && !$('document').hidden) resizeTextareas(); });
     $('sidebar-backdrop').onclick = () => closeSidebar();
     compactSidebar.addEventListener('change', () => closeSidebar(false));
     syncSidebar();
@@ -879,7 +900,7 @@
     $('metadata-close').onclick = () => { state.settings = false; updateSettings(); };
     $('metadata-panel').addEventListener('close', () => { state.settings = false; $('metadata-button').setAttribute('aria-expanded', 'false'); });
     $('metadata-panel').addEventListener('click', event => { if (event.target === $('metadata-panel')) { const rect = event.target.getBoundingClientRect(); if (event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) { state.settings = false; updateSettings(); } } });
-    $('focus-button').onclick = () => { state.focus = !state.focus; $('app').classList.toggle('focus-mode', state.focus); $('focus-button').setAttribute('aria-pressed', String(state.focus)); if (!$('document').hidden) resizeTextareas(); };
+    $('focus-button').onclick = () => { state.focus = !state.focus; $('app').classList.toggle('focus-mode', state.focus); $('focus-button').setAttribute('aria-pressed', String(state.focus)); syncSidebar(); if (!$('document').hidden) resizeTextareas(); };
     $('mode-visual').onclick = act(() => changeMode('wysiwyg'));
     $('mode-markdown').onclick = act(() => changeMode('markdown'));
     for (const id of ['mode-visual', 'mode-markdown']) {
@@ -948,7 +969,7 @@
       }
       const editing = event.target.closest('input,textarea,select,[contenteditable="true"],[data-studio-menu],[data-toolbar-toggle]');
       if (!editing && !modifier && !event.altKey) {
-        if (event.key === '/') { event.preventDefault(); if (compactSidebar.matches) openSidebar(); $('search').focus(); }
+        if (event.key === '/') { event.preventDefault(); if (compactSidebar.matches || sidebarCollapsed || state.focus) openSidebar(); $('search').focus(); }
         if (event.key.toLowerCase() === 'n') { event.preventDefault(); newDraft().catch(error => notify(error.message, true)); }
       }
     });

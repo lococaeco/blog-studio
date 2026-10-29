@@ -86,19 +86,23 @@
   function markdownBlock(nodeInfo, context, doc) {
     let node = nodeInfo.node;
     const previous = nodeInfo.parent && nodeInfo.index > 0 ? nodeInfo.parent.child(nodeInfo.index - 1) : null;
-    const hasCaption = item => item?.type.name === 'paragraph' && item.content.content.some(child => child.type.name === 'image' && Object.hasOwn(child.attrs.htmlAttrs || {}, 'data-studio-caption'));
+    const hasFormattedImage = item => blockTypes.has(item?.type.name) && item.content.content.some(child => {
+      if (child.type.name !== 'image') return false;
+      const attrs = child.attrs.htmlAttrs || {};
+      return Object.hasOwn(attrs, 'data-studio-caption') || attrs.width || attrs['data-studio-image-align'];
+    });
     // The raw-block writer already closes an HTML paragraph with a blank line.
     // Consume the editor's following separator paragraph without adding another
     // blank line that its Markdown importer would remove on the next round trip.
     if (node.type.name === 'paragraph' && !node.content.size && !nodeAlignment(node) && !node.attrs.htmlAttrs?.id &&
-        previous?.type.name === 'paragraph' && (nodeAlignment(previous) || previous.attrs.htmlAttrs?.id || hasCaption(previous))) {
+        previous?.type.name === 'paragraph' && (nodeAlignment(previous) || previous.attrs.htmlAttrs?.id || hasFormattedImage(previous))) {
       return { rawHTML: ['', ''] };
     }
     const id = node.type.name === 'heading' && doc ? headingCollisionIds(doc).get(node) : null;
     if (id) node = node.type.create({ ...node.attrs, htmlAttrs: { ...node.attrs.htmlAttrs, ...headingIdAttrs(id) } }, node.content, node.marks);
-    const captionImage = hasCaption(node);
+    const formattedImage = hasFormattedImage(node);
     const rawHeading = node.type.name === 'heading' && node.attrs.rawHTML;
-    if (!nodeAlignment(node) && !captionImage && !node.attrs.htmlAttrs?.id && !rawHeading) {
+    if (!nodeAlignment(node) && !formattedImage && !node.attrs.htmlAttrs?.id && !rawHeading) {
       return context.origin ? context.origin() : {};
     }
     const container = document.createElement('div');
@@ -233,6 +237,8 @@
   }
 
   function selection(editor) {
+    const table = window.StudioTable?.selection(editor);
+    if (table) return table;
     const { enabled, value, reason, scope } = selectedBlocks(editor);
     return { enabled, value, reason, scope };
   }
@@ -353,6 +359,7 @@
   function apply(editor, direction) {
     if (!directions.has(direction)) return false;
     sessions.get(editor)?.view?.domObserver.flush();
+    if (window.StudioTable?.selection(editor)) return window.StudioTable.alignCells(editor, direction);
     const selected = selectedBlocks(editor);
     if (!selected.enabled) return false;
     const { view } = sessions.get(editor);

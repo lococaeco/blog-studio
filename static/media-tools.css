@@ -40,3 +40,33 @@
 .toastui-editor-contents blockquote[data-studio-card=link] { border-left:1px solid var(--line,#d8e2dd)!important; background:#fbfdfb; color:inherit; }
 .toastui-editor-contents blockquote[data-studio-card=link] img { max-height:280px; max-width:100%; object-fit:contain; }
 @media(max-width:650px) { .media-dialog { padding:18px; width:calc(100vw - 18px); max-height:calc(100dvh - 18px); } .media-image-workspace { grid-template-columns:1fr; gap:8px; } .media-image-controls { display:grid; grid-template-columns:1fr 1fr; gap:0 10px; } .media-image-controls fieldset { grid-column:1/-1; } .media-dialog-heading h2 { font-size:19px; } .media-tools>button { padding:7px; font-size:10px; } }
+
+/* Image controls live outside the editable DOM, so they never enter a post. */
+.media-image-outline { position:fixed; z-index:11; pointer-events:none; border:2px solid #258774; box-sizing:border-box; border-radius:2px }
+.media-image-outline[hidden],.media-image-bar[hidden],.media-image-context[hidden] { display:none!important }
+.media-resize-handle { position:absolute; pointer-events:auto; width:12px; height:12px; min-width:12px; padding:0; border:2px solid #258774; border-radius:3px; background:#fff; box-shadow:0 1px 3px #163d2833; touch-action:none }
+.media-resize-handle:hover,.media-resize-handle:focus-visible { background:#d7f1e8; outline:2px solid #fff; outline-offset:1px }
+.media-resize-nw { left:-7px; top:-7px; cursor:nwse-resize }
+.media-resize-ne { right:-7px; top:-7px; cursor:nesw-resize }
+.media-resize-sw { left:-7px; bottom:-7px; cursor:nesw-resize }
+.media-resize-se { right:-7px; bottom:-7px; cursor:nwse-resize }
+.media-resize-w { left:-7px; top:calc(50% - 6px); cursor:ew-resize }
+.media-resize-e { right:-7px; top:calc(50% - 6px); cursor:ew-resize }
+.media-image-outline.is-resizing { border-color:#16725e }
+.media-image-bar { position:fixed; z-index:11; display:flex; align-items:center; justify-content:space-between; gap:8px; height:40px; padding:4px 7px; border:1px solid var(--line,#d8e2dd); border-radius:10px; color:var(--ink,#26342e); background:var(--paper,#fff); box-shadow:0 5px 22px #203c2d1f; box-sizing:border-box; font-size:11px }
+.media-image-label { color:var(--muted,#65736c); padding-left:3px; font-size:10px }
+.media-image-bar label { display:flex; align-items:center; gap:4px; white-space:nowrap; font-size:10px }
+.media-image-bar input { width:58px; min-width:0; height:28px; padding:3px 5px; border:1px solid var(--line,#d8e2dd); border-radius:5px; background:var(--paper,#fff); color:inherit; font:inherit }
+.media-image-bar button { height:30px; padding:0 8px; border-radius:6px; background:transparent; white-space:nowrap; font-size:11px }
+.media-image-bar button:hover,.media-image-bar button[aria-expanded=true] { background:var(--accent-soft,#edf7f3); color:var(--accent-dark,#147d70) }
+.media-image-context { position:fixed; z-index:35; padding:7px; overflow:auto; overscroll-behavior:contain; border:1px solid var(--line,#d8e2dd); border-radius:12px; background:var(--paper,#fff); box-shadow:0 12px 45px #203c2d24; color:var(--ink,#26342e); box-sizing:border-box }
+.media-image-context>button { display:block; width:100%; padding:9px 10px; border:0; border-radius:6px; text-align:left; font-size:12px; background:transparent }
+.media-image-context button:hover,.media-image-context button[aria-pressed=true] { background:var(--accent-soft,#edf7f3); color:var(--accent-dark,#147d70) }
+.media-image-context>small { display:block; padding:12px 10px 5px; font-size:10px; color:var(--muted,#65736c); border-top:1px solid var(--line,#d8e2dd); margin-top:5px }
+.media-image-align { display:flex; gap:4px; padding:0 3px 8px }
+.media-image-align button { flex:1; height:32px; border-radius:6px; font-size:11px; background:var(--cream,#f5f6f3) }
+.media-image-context .media-image-danger { color:#ac3d42; border-top:1px solid var(--line,#d8e2dd); border-radius:0; margin-top:5px }
+.media-image-details { max-width:480px }
+.toastui-editor-contents img[width] { max-width:100%; height:auto }
+@media (pointer:coarse) { .media-resize-handle { width:18px; height:18px; min-width:18px; border-radius:5px } .media-resize-nw,.media-resize-sw,.media-resize-w { left:-10px } .media-resize-ne,.media-resize-se,.media-resize-e { right:-10px } .media-resize-nw,.media-resize-ne { top:-10px } .media-resize-sw,.media-resize-se { bottom:-10px } .media-resize-w,.media-resize-e { top:calc(50% - 9px) } }
+@media print { .media-image-outline,.media-image-bar,.media-image-context { display:none!important } }
