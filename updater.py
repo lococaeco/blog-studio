@@ -20,7 +20,7 @@ import uuid
 
 from runtime import external_environment, external_program_environment, subprocess_options
 
-CURRENT_VERSION = '0.4.0'
+CURRENT_VERSION = '0.4.1'
 RELEASE_REPO = 'lococaeco/blog-studio'
 RELEASES_URL = 'https://github.com/' + RELEASE_REPO + '/releases'
 MAX_DOWNLOAD = 256 * 1024 * 1024

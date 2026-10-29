@@ -209,6 +209,26 @@
     function native(name,payload) {
       const before=currentTable(session); if(!before)return;
       if(name==='addRowToDown'&&selectedCells(session,before).some(cell=>cell.node.type.name==='tableHeadCell')) {
+        // Native addTable accepts a header-only table. There is no body cell
+        // to use as the native add-row command's selection in that case.
+        if (!before.node.child(1).childCount) {
+          const { state } = session.view, cells = [];
+          before.node.firstChild.firstChild.forEach(header => {
+            for (let index = 0; index < (Number(header.attrs.colspan) || 1); index++) {
+              cells.push(state.schema.nodes.tableBodyCell.create({ align: header.attrs.align }, state.schema.nodes.paragraph.create()));
+            }
+          });
+          const bodyStart = before.position + 1 + before.node.firstChild.nodeSize + 1;
+          const body = before.node.child(1);
+          const row = state.schema.nodes.tableRow.create(null, cells);
+          const updatedBody = body.type.create(body.attrs, row, body.marks);
+          const updatedTable = before.node.type.create(before.node.attrs, [before.node.firstChild, updatedBody], before.node.marks);
+          // Replace the table as a whole so undo can restore the native empty
+          // tbody, which otherwise violates its own tableRow+ content rule.
+          let tr = state.tr.replaceWith(before.position, before.position + before.node.nodeSize, updatedTable);
+          tr = tr.setSelection(session.context.pmState.TextSelection.near(tr.doc.resolve(bodyStart + 3)));
+          commit(session, tr); closePanel(); return;
+        }
         const firstCell=before.position+1+before.node.firstChild.nodeSize+2;
         session.view.dispatch(session.view.state.tr.setSelection(contextSelection(firstCell)).setMeta('addToHistory',false));
         name='addRowToUp';
